@@ -54,6 +54,17 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'All text fields (name, email, password, whatsApp) are required.' });
     }
 
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
+    }
+
+    // Password minimum length
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+    }
+
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ success: false, message: 'An account is already registered with this email address.' });
@@ -148,13 +159,13 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, message: 'This account is already verified.' });
     }
 
-    // Verify OTP code & expiration
-    if (user.otpCode !== otpCode) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP code entered.' });
+    // Check OTP expiry FIRST before comparing code
+    if (!user.otpExpires || user.otpExpires < new Date()) {
+      return res.status(400).json({ success: false, message: 'The OTP code has expired. Please request a new one.' });
     }
 
-    if (user.otpExpires < new Date()) {
-      return res.status(400).json({ success: false, message: 'The OTP code has expired (5-minute limit).' });
+    if (user.otpCode !== otpCode) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code entered.' });
     }
 
     // Verify user
@@ -165,12 +176,12 @@ router.post('/verify-otp', async (req, res) => {
 
     const token = generateToken(user._id);
 
-    // Set cookie
+    // Set cookie (sameSite=none required for cross-origin Vercel <-> Render)
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      secure: true,
+      sameSite: 'none',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({
@@ -301,11 +312,11 @@ router.post('/login', async (req, res) => {
 
     const token = generateToken(user._id);
 
-    // Set HTTP-only cookie
+    // Set HTTP-only cookie (sameSite=none required for cross-origin Vercel <-> Render)
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
@@ -341,7 +352,7 @@ router.get('/me', protect, async (req, res) => {
 // @route   POST /api/auth/logout
 // @access  Private
 router.post('/logout', protect, (req, res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none' });
   return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 });
 

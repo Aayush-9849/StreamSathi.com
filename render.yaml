@@ -7,6 +7,8 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: MONGO_URI
         value: mongodb+srv://Vercel-Admin-atlas-charcoal-yacht:XnuOH2DKLbA9hWDv@atlas-charcoal-yacht.xcyhkr7.mongodb.net/streamsathi?retryWrites=true&w=majority&appName=atlas-charcoal-yacht
       - key: JWT_SECRET

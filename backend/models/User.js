@@ -32,6 +32,16 @@ const userSchema = new mongoose.Schema({
   otpExpires: {
     type: Date,
   },
+  emailStatus: {
+    type: String,
+    enum: ['sent', 'failed'],
+  },
+  emailMessageId: {
+    type: String,
+  },
+  emailError: {
+    type: String,
+  },
 }, {
   timestamps: true,
 });
