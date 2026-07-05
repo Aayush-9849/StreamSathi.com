@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function Header() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function Header() {
         return;
       }
       
-      const res = await fetch('http://localhost:5001/api/auth/me', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -50,7 +51,7 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem('token');
-      await fetch('http://localhost:5001/api/auth/logout', {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

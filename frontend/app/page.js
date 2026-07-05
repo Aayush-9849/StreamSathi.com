@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from './config';
 
 const platformsData = [
   {
@@ -183,7 +184,7 @@ export default function Home() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const res = await fetch('http://localhost:5001/api/plans');
+        const res = await fetch(`${API_BASE_URL}/api/plans`);
         const data = await res.json();
         if (data.success && data.plans) {
           const updatedPlatforms = platformsData.map(plat => {

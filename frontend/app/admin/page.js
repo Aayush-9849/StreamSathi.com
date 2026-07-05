@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '../config';
 
 function PlanRow({ plan, onUpdate }) {
   const [price, setPrice] = useState(plan.price);
@@ -79,7 +80,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      const res = await fetch('http://localhost:5001/api/orders/admin/all', {
+      const res = await fetch(`${API_BASE_URL}/api/orders/admin/all`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -106,13 +107,13 @@ export default function AdminDashboard() {
 
   const fetchStorefrontConfig = useCallback(async () => {
     try {
-      const plansRes = await fetch('http://localhost:5001/api/plans');
+      const plansRes = await fetch(`${API_BASE_URL}/api/plans`);
       const plansData = await plansRes.json();
       if (plansData.success) {
         setPlans(plansData.plans);
       }
 
-      const settingsRes = await fetch('http://localhost:5001/api/settings');
+      const settingsRes = await fetch(`${API_BASE_URL}/api/settings`);
       const settingsData = await settingsRes.json();
       if (settingsData.success) {
         setQrConfig(settingsData.settings);
@@ -137,7 +138,7 @@ export default function AdminDashboard() {
 
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:5001/api/orders/admin/update-status/${orderId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/orders/admin/update-status/${orderId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +163,7 @@ export default function AdminDashboard() {
   const handleUpdatePlan = async (planId, price, details) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:5001/api/plans/${planId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/plans/${planId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +194,7 @@ export default function AdminDashboard() {
     formData.append('qrImage', file);
 
     try {
-      const res = await fetch('http://localhost:5001/api/settings/upload-qr', {
+      const res = await fetch(`${API_BASE_URL}/api/settings/upload-qr`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -398,7 +399,7 @@ export default function AdminDashboard() {
                   {/* Actions */}
                   <div className="flex flex-col gap-2 mt-4">
                     <button
-                      onClick={() => setSelectedScreenshotUrl(`http://localhost:5001${order.paymentScreenshotUrl}`)}
+                      onClick={() => setSelectedScreenshotUrl(`${API_BASE_URL}${order.paymentScreenshotUrl}`)}
                       className="btn btn-secondary w-full py-2 text-xs rounded-xl shadow-sm"
                     >
                       View Receipt Screenshot 🖼️
@@ -476,7 +477,7 @@ export default function AdminDashboard() {
               <div className="flex flex-col items-center gap-4 py-4">
                 <div className="relative w-48 h-48 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center p-2 shadow-inner">
                   <img
-                    src={esewaPreview || (qrConfig.esewa_qr ? (qrConfig.esewa_qr.startsWith('/uploads/') ? `http://localhost:5001${qrConfig.esewa_qr}` : qrConfig.esewa_qr) : '/images/esewa_qr.jpg')}
+                    src={esewaPreview || (qrConfig.esewa_qr ? (qrConfig.esewa_qr.startsWith('/uploads/') ? `${API_BASE_URL}${qrConfig.esewa_qr}` : qrConfig.esewa_qr) : '/images/esewa_qr.jpg')}
                     alt="eSewa QR Code"
                     className="object-contain w-full h-full"
                   />
@@ -518,7 +519,7 @@ export default function AdminDashboard() {
               <div className="flex flex-col items-center gap-4 py-4">
                 <div className="relative w-48 h-48 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center p-2 shadow-inner">
                   <img
-                    src={khaltiPreview || (qrConfig.khalti_qr ? (qrConfig.khalti_qr.startsWith('/uploads/') ? `http://localhost:5001${qrConfig.khalti_qr}` : qrConfig.khalti_qr) : '/images/khalti_qr.jpg')}
+                    src={khaltiPreview || (qrConfig.khalti_qr ? (qrConfig.khalti_qr.startsWith('/uploads/') ? `${API_BASE_URL}${qrConfig.khalti_qr}` : qrConfig.khalti_qr) : '/images/khalti_qr.jpg')}
                     alt="Khalti QR Code"
                     className="object-contain w-full h-full"
                   />

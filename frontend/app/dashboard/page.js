@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { API_BASE_URL } from '../config';
 
 export default function UserDashboard() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function UserDashboard() {
 
       try {
         // Profile
-        const profileRes = await fetch('http://localhost:5001/api/auth/me', {
+        const profileRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -37,7 +38,7 @@ export default function UserDashboard() {
         setUser(profileData.user);
 
         // My orders
-        const ordersRes = await fetch('http://localhost:5001/api/orders/my-orders', {
+        const ordersRes = await fetch(`${API_BASE_URL}/api/orders/my-orders`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

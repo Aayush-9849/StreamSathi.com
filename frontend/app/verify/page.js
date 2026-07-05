@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { API_BASE_URL } from '../config';
 
 function VerifyForm() {
   const router = useRouter();
@@ -87,7 +88,7 @@ function VerifyForm() {
     }
 
     try {
-      const res = await fetch('http://localhost:5001/api/auth/resend-otp', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/resend-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,7 +130,7 @@ function VerifyForm() {
     }
 
     try {
-      const res = await fetch('http://localhost:5001/api/auth/verify-otp', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

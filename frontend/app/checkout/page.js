@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import { API_BASE_URL } from '../config';
 
 function CheckoutForm() {
   const router = useRouter();
@@ -34,7 +35,7 @@ function CheckoutForm() {
       }
 
       try {
-        const res = await fetch('http://localhost:5001/api/auth/me', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -70,7 +71,7 @@ function CheckoutForm() {
   useEffect(() => {
     const fetchQrSettings = async () => {
       try {
-        const res = await fetch('http://localhost:5001/api/settings');
+        const res = await fetch(`${API_BASE_URL}/api/settings`);
         const data = await res.json();
         if (data.success && data.settings) {
           setQrSettings({
@@ -88,7 +89,7 @@ function CheckoutForm() {
   const getQrSource = () => {
     const val = paymentMethod === 'eSewa' ? qrSettings.esewa_qr : qrSettings.khalti_qr;
     if (val.startsWith('/uploads/')) {
-      return `http://localhost:5001${val}`;
+      return `${API_BASE_URL}${val}`;
     }
     return val;
   };
@@ -125,7 +126,7 @@ function CheckoutForm() {
       formData.append('paymentMethod', paymentMethod);
       formData.append('screenshot', screenshotFile);
 
-      const res = await fetch('http://localhost:5001/api/orders/place-order', {
+      const res = await fetch(`${API_BASE_URL}/api/orders/place-order`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
