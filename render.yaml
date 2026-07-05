@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: streamsathi-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGO_URI
+        value: mongodb+srv://Vercel-Admin-atlas-charcoal-yacht:XnuOH2DKLbA9hWDv@atlas-charcoal-yacht.xcyhkr7.mongodb.net/streamsathi?retryWrites=true&w=majority&appName=atlas-charcoal-yacht
+      - key: JWT_SECRET
+        value: streamsathi_jwt_secret_token_2026_key
+      - key: FRONTEND_URL
+        value: http://localhost:3000
