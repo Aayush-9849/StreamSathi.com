@@ -12,4 +12,4 @@ services:
       - key: JWT_SECRET
         value: streamsathi_jwt_secret_token_2026_key
       - key: FRONTEND_URL
-        value: http://localhost:3000
+        value: https://stream-sathi-com.vercel.app
