@@ -90,7 +90,7 @@ router.post('/register', async (req, res) => {
       const mailOptions = {
         from: `"StreamSathi Portal" <${process.env.EMAIL_USER || 'no-reply@streamsathi.com'}>`,
         to: email,
-        subject: 'StreamSathi Registration - Email Activation OTP',
+        subject: 'StreamSathi - Email Activation OTP Code',
         html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
             <h2 style="color: #4F46E5; text-align: center;">Welcome to StreamSathi!</h2>
@@ -103,25 +103,18 @@ router.post('/register', async (req, res) => {
         `,
       };
 
-      transporter.sendMail(mailOptions, async (error, info) => {
-        if (error) {
-          console.error('Nodemailer OTP sending error:', error);
-          await User.updateOne({ _id: user._id }, { 
-            $set: { 
-              emailStatus: 'failed',
-              emailError: error.message
-            } 
-          });
-        } else {
-          console.log('Nodemailer OTP email sent successfully:', info.messageId);
-          await User.updateOne({ _id: user._id }, { 
-            $set: { 
-              emailStatus: 'sent',
-              emailMessageId: info.messageId
-            } 
-          });
-        }
-      });
+      try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Nodemailer OTP email sent successfully:', info.messageId);
+        await User.updateOne({ _id: user._id }, {
+          $set: { emailStatus: 'sent', emailMessageId: info.messageId }
+        });
+      } catch (mailErr) {
+        console.error('Nodemailer OTP sending error:', mailErr.message);
+        await User.updateOne({ _id: user._id }, {
+          $set: { emailStatus: 'failed', emailError: mailErr.message }
+        });
+      }
     }
 
     return res.status(201).json({
@@ -236,11 +229,11 @@ router.post('/resend-otp', async (req, res) => {
       const mailOptions = {
         from: `"StreamSathi Portal" <${process.env.EMAIL_USER || 'no-reply@streamsathi.com'}>`,
         to: email,
-        subject: 'StreamSathi Registration - New Activation OTP',
+        subject: 'StreamSathi - New Activation OTP Code',
         html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-            <h2 style="color: #4F46E5; text-align: center;">Welcome to StreamSathi!</h2>
-            <p>You requested a new activation code. Please enter the following 6-digit activation code to activate your account.</p>
+            <h2 style="color: #4F46E5; text-align: center;">StreamSathi OTP Resend</h2>
+            <p>You requested a new activation code. Please enter the following 6-digit code to activate your account.</p>
             <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #1f2937; margin: 20px 0;">
               ${otpCode}
             </div>
@@ -249,25 +242,18 @@ router.post('/resend-otp', async (req, res) => {
         `,
       };
 
-      transporter.sendMail(mailOptions, async (error, info) => {
-        if (error) {
-          console.error('Nodemailer resend OTP sending error:', error);
-          await User.updateOne({ _id: user._id }, { 
-            $set: { 
-              emailStatus: 'failed',
-              emailError: error.message
-            } 
-          });
-        } else {
-          console.log('Nodemailer resend OTP email sent successfully:', info.messageId);
-          await User.updateOne({ _id: user._id }, { 
-            $set: { 
-              emailStatus: 'sent',
-              emailMessageId: info.messageId
-            } 
-          });
-        }
-      });
+      try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Nodemailer resend OTP email sent successfully:', info.messageId);
+        await User.updateOne({ _id: user._id }, {
+          $set: { emailStatus: 'sent', emailMessageId: info.messageId }
+        });
+      } catch (mailErr) {
+        console.error('Nodemailer resend OTP sending error:', mailErr.message);
+        await User.updateOne({ _id: user._id }, {
+          $set: { emailStatus: 'failed', emailError: mailErr.message }
+        });
+      }
     }
 
     return res.status(200).json({
