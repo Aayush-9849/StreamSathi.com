@@ -103,11 +103,23 @@ router.post('/register', async (req, res) => {
         `,
       };
 
-      transporter.sendMail(mailOptions, (error, info) => {
+      transporter.sendMail(mailOptions, async (error, info) => {
         if (error) {
           console.error('Nodemailer OTP sending error:', error);
+          await User.updateOne({ _id: user._id }, { 
+            $set: { 
+              emailStatus: 'failed',
+              emailError: error.message
+            } 
+          });
         } else {
           console.log('Nodemailer OTP email sent successfully:', info.messageId);
+          await User.updateOne({ _id: user._id }, { 
+            $set: { 
+              emailStatus: 'sent',
+              emailMessageId: info.messageId
+            } 
+          });
         }
       });
     }
@@ -237,11 +249,23 @@ router.post('/resend-otp', async (req, res) => {
         `,
       };
 
-      transporter.sendMail(mailOptions, (error, info) => {
+      transporter.sendMail(mailOptions, async (error, info) => {
         if (error) {
           console.error('Nodemailer resend OTP sending error:', error);
+          await User.updateOne({ _id: user._id }, { 
+            $set: { 
+              emailStatus: 'failed',
+              emailError: error.message
+            } 
+          });
         } else {
           console.log('Nodemailer resend OTP email sent successfully:', info.messageId);
+          await User.updateOne({ _id: user._id }, { 
+            $set: { 
+              emailStatus: 'sent',
+              emailMessageId: info.messageId
+            } 
+          });
         }
       });
     }
