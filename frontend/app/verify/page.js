@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_BASE_URL } from '../config';
 
@@ -13,6 +13,12 @@ function VerifyForm() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const redirectTimer = useRef(null);
+
+  // Clean up redirect timer on unmount
+  useEffect(() => {
+    return () => { if (redirectTimer.current) clearTimeout(redirectTimer.current); };
+  }, []);
 
   const handleDigitChange = (val, index) => {
     const cleanVal = val.replace(/\D/g, '');
@@ -98,8 +104,8 @@ function VerifyForm() {
 
       const data = await res.json();
       if (data.success) {
-        setSuccess('OTP resent! Check your backend server terminal console for the new 6-digit code.');
-        setOtpArray(['', '', '', '', '', '']); // Reset expired digits
+        setSuccess('A new OTP has been sent to your email. Please check your inbox and spam folder.');
+        setOtpArray(['', '', '', '', '', '']);
         setCooldown(30);
         
         // Auto-focus back to the first split input box
@@ -112,7 +118,7 @@ function VerifyForm() {
       }
     } catch (err) {
       console.error(err);
-      setError('Connection failed. Make sure backend server is running.');
+      setError('Connection failed. Please check your internet and try again.');
     }
   };
 
@@ -150,7 +156,7 @@ function VerifyForm() {
         const plan = searchParams.get('plan');
         const price = searchParams.get('price');
 
-        setTimeout(() => {
+        redirectTimer.current = setTimeout(() => {
           if (redirect === 'checkout' && platform && plan && price) {
             router.push(`/checkout?platform=${platform}&plan=${plan}&price=${price}`);
           } else {
@@ -162,7 +168,7 @@ function VerifyForm() {
       }
     } catch (err) {
       console.error(err);
-      setError('Connection failed. Make sure backend server is running.');
+      setError('Connection failed. Please check your internet and try again.');
     } finally {
       setLoading(false);
     }
@@ -241,7 +247,7 @@ function VerifyForm() {
         </div>
 
         <p style={{ color: '#526071', fontSize: '0.85rem', textAlign: 'center', marginTop: '1.5rem' }}>
-          Check your Gmail inbox/spam, or find the OTP printed directly to the server terminal.
+          Please check your email inbox and spam folder for the OTP.
         </p>
       </div>
     </div>

@@ -24,13 +24,17 @@ router.put('/:id', protect, async (req, res) => {
 
   try {
     // Validate admin privileges
-    const isAdmin = req.user.email === 'kumaryada263@gmail.com';
-    if (!isAdmin) {
+    if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, message: 'Access denied. Administrator privileges required.' });
     }
 
     if (price === undefined || !details) {
       return res.status(400).json({ success: false, message: 'Please provide both price and details.' });
+    }
+
+    const parsedPrice = Number(price);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ success: false, message: 'Price must be a valid non-negative number.' });
     }
 
     const plan = await Plan.findById(req.params.id);

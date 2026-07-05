@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import { API_BASE_URL } from '../config';
 
 function CheckoutForm() {
@@ -25,6 +24,16 @@ function CheckoutForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const redirectTimer = useRef(null);
+  const previewUrlRef = useRef(null);
+
+  // Cleanup object URL and redirect timer on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -97,8 +106,12 @@ function CheckoutForm() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Revoke previous object URL to prevent memory leak
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      const url = URL.createObjectURL(file);
+      previewUrlRef.current = url;
       setScreenshotFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      setPreviewUrl(url);
     }
   };
 
@@ -137,7 +150,7 @@ function CheckoutForm() {
       const data = await res.json();
       if (data.success) {
         setSuccess('Order placed successfully! Redirecting to dashboard...');
-        setTimeout(() => {
+        redirectTimer.current = setTimeout(() => {
           router.push('/dashboard');
         }, 2000);
       } else {

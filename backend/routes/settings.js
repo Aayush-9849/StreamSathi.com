@@ -31,7 +31,9 @@ const fileFilter = (req, file, cb) => {
   if (mimetype && extname) {
     return cb(null, true);
   }
-  cb(new Error('Only QR code image files (jpeg, jpg, png, webp) are allowed!'));
+  const err = new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname);
+  err.message = 'Only QR code image files (jpeg, jpg, png, webp) are allowed!';
+  cb(err);
 };
 
 const upload = multer({
@@ -40,13 +42,24 @@ const upload = multer({
   limits: { fileSize: 3 * 1024 * 1024 }, // 3MB limit
 });
 
+// Helper: wrap multer to catch MulterError inside route
+const uploadQr = (req, res, next) => {
+  upload.single('qrImage')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ success: false, message: err.message || 'File upload error.' });
+    } else if (err) {
+      return res.status(400).json({ success: false, message: err.message || 'File type not allowed.' });
+    }
+    next();
+  });
+};
+
 // @desc    Get current eSewa and Khalti QR code values
 // @route   GET /api/settings
 // @access  Public
 router.get('/', async (req, res) => {
   try {
     const settings = await Setting.find();
-    // Reduce array to simple key-value dictionary for easy consumption
     const config = {};
     settings.forEach((s) => {
       config[s.key] = s.value;
@@ -61,24 +74,18 @@ router.get('/', async (req, res) => {
 // @desc    Upload new QR code for eSewa or Khalti
 // @route   POST /api/settings/upload-qr
 // @access  Private (Admin Only)
-router.post('/upload-qr', protect, upload.single('qrImage'), async (req, res) => {
+router.post('/upload-qr', protect, uploadQr, async (req, res) => {
   const { key } = req.body;
 
   try {
-    // Validate admin privileges
-    const isAdmin = req.user.email === 'kumaryada263@gmail.com';
-    if (!isAdmin) {
-      // Remove uploaded file if not admin to prevent orphan storage files
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
-      }
+    // Validate admin privileges using isAdmin field
+    if (!req.user.isAdmin) {
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(403).json({ success: false, message: 'Access denied. Administrator privileges required.' });
     }
 
     if (!key || !['esewa_qr', 'khalti_qr'].includes(key)) {
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ success: false, message: 'Please select a valid merchant (esewa_qr or khalti_qr).' });
     }
 
@@ -88,19 +95,14 @@ router.post('/upload-qr', protect, upload.single('qrImage'), async (req, res) =>
 
     const valuePath = `/uploads/${req.file.filename}`;
 
-    // Update or insert setting key
     let setting = await Setting.findOne({ key });
     if (setting) {
-      // Optional: Delete old custom QR file if it was custom uploaded (not a pre-seeded static path)
+      // Delete old custom QR file asynchronously if it was previously uploaded
       if (setting.value.startsWith('/uploads/')) {
         const oldFilePath = path.join(__dirname, '..', setting.value);
-        if (fs.existsSync(oldFilePath)) {
-          try {
-            fs.unlinkSync(oldFilePath);
-          } catch (err) {
-            console.error('Failed to delete old QR image:', err);
-          }
-        }
+        await fs.promises.unlink(oldFilePath).catch((err) => {
+          console.error('Failed to delete old QR image:', err.message);
+        });
       }
       setting.value = valuePath;
       setting.updatedAt = Date.now();
@@ -118,10 +120,7 @@ router.post('/upload-qr', protect, upload.single('qrImage'), async (req, res) =>
     });
   } catch (error) {
     console.error('Upload QR error:', error);
-    // Cleanup on generic error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
     return res.status(500).json({ success: false, message: error.message || 'Server error uploading QR code.' });
   }
 });

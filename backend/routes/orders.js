@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const Order = require('../models/Order');
+const Plan = require('../models/Plan');
 const { protect, verifiedOnly } = require('../middleware/auth');
 
 // Ensure uploads folder exists
@@ -32,7 +33,9 @@ const fileFilter = (req, file, cb) => {
   if (mimetype && extname) {
     return cb(null, true);
   }
-  cb(new Error('Only receipt image files (jpeg, jpg, png, webp) are allowed!'));
+  const err = new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname);
+  err.message = 'Only receipt image files (jpeg, jpg, png, webp) are allowed!';
+  cb(err);
 };
 
 const upload = multer({
@@ -41,21 +44,28 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
 
-// Helper to auto-expire Active orders
+// Helper: wrap multer to handle MulterError in route try/catch
+const uploadSingle = (fieldName) => (req, res, next) => {
+  upload.single(fieldName)(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ success: false, message: err.message || 'File upload error.' });
+    } else if (err) {
+      return res.status(400).json({ success: false, message: err.message || 'File type not allowed.' });
+    }
+    next();
+  });
+};
+
+// Helper: auto-expire Active orders using efficient bulk updateMany
 const autoExpireOrders = async () => {
   try {
     const now = new Date();
-    const expiredOrders = await Order.find({
-      status: 'Active',
-      expiresAt: { $lt: now }
-    });
-
-    if (expiredOrders.length > 0) {
-      for (const order of expiredOrders) {
-        order.status = 'Deactivated';
-        await order.save();
-        console.log(`Auto-deactivated expired subscription: Order ID ${order._id}`);
-      }
+    const result = await Order.updateMany(
+      { status: 'Active', expiresAt: { $lt: now } },
+      { $set: { status: 'Deactivated' } }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`Auto-deactivated ${result.modifiedCount} expired subscriptions.`);
     }
   } catch (err) {
     console.error('Error auto-expiring subscriptions:', err);
@@ -65,7 +75,7 @@ const autoExpireOrders = async () => {
 // @desc    Place a subscription order (screenshot required)
 // @route   POST /api/orders/place-order
 // @access  Private (Verified users only)
-router.post('/place-order', protect, verifiedOnly, upload.single('screenshot'), async (req, res) => {
+router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), async (req, res) => {
   try {
     const {
       platform,
@@ -84,6 +94,7 @@ router.post('/place-order', protect, verifiedOnly, upload.single('screenshot'), 
       !targetStreamingPassword ||
       !paymentMethod
     ) {
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ success: false, message: 'All text fields are required.' });
     }
 
@@ -91,20 +102,54 @@ router.post('/place-order', protect, verifiedOnly, upload.single('screenshot'), 
       return res.status(400).json({ success: false, message: 'Please upload a payment success receipt screenshot.' });
     }
 
-    // Save relative URL path for serving
-    const paymentScreenshotUrl = `/uploads/${req.file.filename}`;
+    // Validate submitted amount against actual plan price in DB
+    const plan = await Plan.findOne({ platform, name: planSelected });
+    if (!plan) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ success: false, message: 'Selected plan not found. Please go back and choose a valid plan.' });
+    }
+    if (Number(amountPaidNPR) < plan.price) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({
+        success: false,
+        message: `Amount mismatch. Expected Rs. ${plan.price} for ${platform} ${planSelected}.`,
+      });
+    }
 
-    const order = await Order.create({
+    // Check for an existing pending/active order to prevent duplicates
+    const existingOrder = await Order.findOne({
       userId: req.user._id,
       platform,
-      planSelected,
-      amountPaidNPR: Number(amountPaidNPR),
-      targetStreamingGmail,
-      targetStreamingPassword,
-      paymentMethod,
-      paymentScreenshotUrl,
-      status: 'Pending',
+      status: { $in: ['Pending', 'In Progress', 'Active'] },
     });
+    if (existingOrder) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({
+        success: false,
+        message: `You already have an active or pending ${platform} subscription order.`,
+      });
+    }
+
+    const paymentScreenshotUrl = `/uploads/${req.file.filename}`;
+
+    let order;
+    try {
+      order = await Order.create({
+        userId: req.user._id,
+        platform,
+        planSelected,
+        amountPaidNPR: Number(amountPaidNPR),
+        targetStreamingGmail,
+        targetStreamingPassword,
+        paymentMethod,
+        paymentScreenshotUrl,
+        status: 'Pending',
+      });
+    } catch (dbErr) {
+      // Cleanup uploaded file if DB save fails
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw dbErr;
+    }
 
     return res.status(201).json({
       success: true,
@@ -137,8 +182,7 @@ router.get('/my-orders', protect, async (req, res) => {
 router.get('/admin/all', protect, async (req, res) => {
   try {
     await autoExpireOrders();
-    const isAdmin = req.user.email === 'kumaryada263@gmail.com';
-    if (!isAdmin) {
+    if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, message: 'Access denied. Administrator session required.' });
     }
 
@@ -160,8 +204,7 @@ router.put('/admin/update-status/:id', protect, async (req, res) => {
   const { status } = req.body;
 
   try {
-    const isAdmin = req.user.email === 'kumaryada263@gmail.com';
-    if (!isAdmin) {
+    if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, message: 'Access denied. Administrator session required.' });
     }
 
@@ -177,7 +220,7 @@ router.put('/admin/update-status/:id', protect, async (req, res) => {
     order.status = status;
     if (status === 'Active') {
       order.activatedAt = new Date();
-      order.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 Days expiration window
+      order.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 Days
     }
     await order.save();
 
