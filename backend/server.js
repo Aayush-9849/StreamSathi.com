@@ -34,7 +34,15 @@ app.use('/api/settings', settingRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
-  res.status(200).json({ success: true, message: 'StreamSathi Backend running smoothly.' });
+  res.status(200).json({ 
+    success: true, 
+    message: 'StreamSathi Backend running smoothly.',
+    envCheck: {
+      hasEmailUser: !!process.env.EMAIL_USER,
+      hasEmailPass: !!process.env.EMAIL_PASS,
+      emailUser: process.env.EMAIL_USER || null
+    }
+  });
 });
 
 // Connect database and launch
