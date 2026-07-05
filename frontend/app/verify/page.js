@@ -1,0 +1,256 @@
+'use client';
+
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+function VerifyForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const [email, setEmail] = useState(searchParams.get('email') || '');
+  const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleDigitChange = (val, index) => {
+    const cleanVal = val.replace(/\D/g, '');
+    if (!cleanVal) {
+      const newOtp = [...otpArray];
+      newOtp[index] = '';
+      setOtpArray(newOtp);
+      return;
+    }
+
+    const singleDigit = cleanVal.slice(-1);
+    const newOtp = [...otpArray];
+    newOtp[index] = singleDigit;
+    setOtpArray(newOtp);
+
+    // Auto-advance focus
+    if (index < 5) {
+      const nextInput = document.getElementById(`otp-digit-${index + 1}`);
+      if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (e, index) => {
+    if (e.key === 'Backspace') {
+      const newOtp = [...otpArray];
+      if (otpArray[index]) {
+        newOtp[index] = '';
+        setOtpArray(newOtp);
+      } else if (index > 0) {
+        newOtp[index - 1] = '';
+        setOtpArray(newOtp);
+        const prevInput = document.getElementById(`otp-digit-${index - 1}`);
+        if (prevInput) prevInput.focus();
+      }
+    }
+  };
+
+  const handleDigitPaste = (e) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData('text').trim();
+    const numericPaste = pasteData.replace(/\D/g, '').slice(0, 6);
+    
+    if (numericPaste.length > 0) {
+      const newOtp = [...otpArray];
+      for (let i = 0; i < 6; i++) {
+        newOtp[i] = numericPaste[i] || '';
+      }
+      setOtpArray(newOtp);
+      
+      const targetIndex = Math.min(numericPaste.length, 5);
+      const targetInput = document.getElementById(`otp-digit-${targetIndex}`);
+      if (targetInput) targetInput.focus();
+    }
+  };
+
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
+
+  const handleResendOtp = async () => {
+    if (cooldown > 0) return;
+    setError('');
+    setSuccess('');
+
+    if (!email) {
+      setError('Please provide your Gmail address to resend the code.');
+      return;
+    }
+
+    try {
+      const res = await fetch('http://localhost:5001/api/auth/resend-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSuccess('OTP resent! Check your backend server terminal console for the new 6-digit code.');
+        setOtpArray(['', '', '', '', '', '']); // Reset expired digits
+        setCooldown(30);
+        
+        // Auto-focus back to the first split input box
+        setTimeout(() => {
+          const firstInput = document.getElementById('otp-digit-0');
+          if (firstInput) firstInput.focus();
+        }, 100);
+      } else {
+        setError(data.message || 'Failed to resend OTP.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Connection failed. Make sure backend server is running.');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    const otpCode = otpArray.join('');
+    if (otpCode.length !== 6) {
+      setError('Please fill in all 6 OTP digits.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('http://localhost:5001/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, otpCode }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSuccess('Account verified successfully! Logging you in...');
+        localStorage.setItem('token', data.token);
+        
+        window.dispatchEvent(new Event('auth-change'));
+
+        const redirect = searchParams.get('redirect');
+        const platform = searchParams.get('platform');
+        const plan = searchParams.get('plan');
+        const price = searchParams.get('price');
+
+        setTimeout(() => {
+          if (redirect === 'checkout' && platform && plan && price) {
+            router.push(`/checkout?platform=${platform}&plan=${plan}&price=${price}`);
+          } else {
+            router.push('/');
+          }
+        }, 1500);
+      } else {
+        setError(data.message || 'Verification failed. Please check the code.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Connection failed. Make sure backend server is running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '70vh' }}>
+      <div className="glass-card rounded-2xl shadow-2xl p-6 sm:p-10" style={{ maxWidth: '450px', width: '100%' }}>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.5rem', textAlign: 'center', color: '#111827' }}>
+          Verify Email Address
+        </h2>
+        <p style={{ color: '#526071', fontSize: '0.9rem', textAlign: 'center', marginBottom: '2rem' }}>
+          An activation OTP code was sent to your registered Gmail address.
+        </p>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-600 p-3 rounded-lg mb-6 text-sm">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 p-3 rounded-lg mb-6 text-sm">
+            {success}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="floating-label-group">
+            <input
+              type="email"
+              id="email"
+              required
+              className="floating-label-input"
+              placeholder=" "
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <label className="floating-label-text" htmlFor="email">Gmail Address</label>
+          </div>
+
+          <div className="flex flex-col gap-2 mb-6">
+            <label className="text-slate-500 text-xs font-semibold uppercase tracking-wider text-center">
+              Enter 6-Digit OTP Code
+            </label>
+            <div className="split-otp-container" onPaste={handleDigitPaste}>
+              {otpArray.map((digit, index) => (
+                <input
+                  key={index}
+                  id={`otp-digit-${index}`}
+                  type="text"
+                  maxLength={1}
+                  className="split-otp-input"
+                  value={digit}
+                  onChange={(e) => handleDigitChange(e.target.value, index)}
+                  onKeyDown={(e) => handleDigitKeyDown(e, index)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" disabled={loading} className="btn btn-primary w-full mt-2 py-3 rounded-xl">
+            {loading ? 'Verifying...' : 'Verify OTP & Activate'}
+          </button>
+        </form>
+
+        <div className="text-center mt-6">
+          <button
+            type="button"
+            onClick={handleResendOtp}
+            disabled={cooldown > 0}
+            className={`text-sm font-semibold transition-all duration-150 border-b border-transparent ${cooldown > 0 ? 'text-slate-400 cursor-not-allowed' : 'text-indigo-600 hover:text-indigo-800 hover:border-indigo-800'}`}
+          >
+            {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP Code ✉️'}
+          </button>
+        </div>
+
+        <p style={{ color: '#526071', fontSize: '0.85rem', textAlign: 'center', marginTop: '1.5rem' }}>
+          Check your Gmail inbox/spam, or find the OTP printed directly to the server terminal.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function Verify() {
+  return (
+    <Suspense fallback={<div style={{ textAlign: 'center', padding: '3rem' }}>Loading verification...</div>}>
+      <VerifyForm />
+    </Suspense>
+  );
+}
