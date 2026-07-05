@@ -13,3 +13,7 @@ services:
         value: streamsathi_jwt_secret_token_2026_key
       - key: FRONTEND_URL
         value: https://stream-sathi-com.vercel.app
+      - key: EMAIL_USER
+        value: streamsathi00@gmail.com
+      - key: EMAIL_PASS
+        value: qnpdspaxtvcgeeqg
