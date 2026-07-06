@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from './config';
 
@@ -178,8 +178,9 @@ export default function Home() {
   const router = useRouter();
   const [platforms, setPlatforms] = useState(platformsData);
   const [selectedPlatform, setSelectedPlatform] = useState(platformsData[0]);
-  const [selectedPlan, setSelectedPlan] = useState(platformsData[0].plans[2]); // Default Standard plan
+  const [selectedPlan, setSelectedPlan] = useState(platformsData[0].plans[2]);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [isBuying, setIsBuying] = useState(false);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -228,6 +229,7 @@ export default function Home() {
   };
 
   const handleBuyNow = () => {
+    setIsBuying(true);
     const token = localStorage.getItem('token');
     if (!token) {
       router.push(`/login?redirect=checkout&platform=${selectedPlatform.name}&plan=${selectedPlan.name}&price=${selectedPlan.price}`);
@@ -268,7 +270,7 @@ export default function Home() {
             return (
               <div
                 key={platform.id}
-                className={`group rounded-xl p-3 sm:p-4 cursor-pointer flex flex-col justify-between min-h-40 transition-all duration-200 ease-out relative overflow-hidden border shadow-[0_16px_34px_-28px_rgba(15,23,42,0.55)] ${isSelected ? colors.borderActive : `${colors.border} hover:border-slate-300`}`}
+                className={`group rounded-xl p-3 sm:p-4 cursor-pointer flex flex-col justify-between min-h-40 transition-all duration-200 ease-out relative overflow-hidden border shadow-[0_16px_34px_-28px_rgba(15,23,42,0.55)] ${isSelected ? colors.borderActive : `${colors.border} hover:border-slate-300 hover:scale-[1.015]`}`}
                 style={{ background: colors.surface }}
                 onClick={() => handlePlatformChange(platform)}
               >
@@ -322,7 +324,18 @@ export default function Home() {
         </p>
 
         <div className="flex flex-col gap-3 sm:gap-4">
-          {selectedPlatform.plans.map((plan) => (
+          {loadingPlans
+            ? // Skeleton plan cards while loading
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex justify-between items-center gap-4 p-4 sm:p-5 rounded-xl border border-slate-100 animate-pulse">
+                  <div className="flex flex-col gap-2 flex-1">
+                    <div className="skeleton h-4 w-28 rounded" />
+                    <div className="skeleton h-3 w-48 rounded" />
+                  </div>
+                  <div className="skeleton h-6 w-16 rounded" />
+                </div>
+              ))
+            : selectedPlatform.plans.map((plan) => (
             <div
               key={plan.name}
               className={`relative flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 p-4 sm:p-5 rounded-xl transition-all duration-200 cursor-pointer border ${selectedPlan.name === plan.name ? 'border-blue-500 bg-blue-50/70 shadow-sm' : 'border-slate-100 hover:bg-slate-50 hover:border-slate-200'}`}
@@ -370,8 +383,8 @@ export default function Home() {
                 Rs. {selectedPlan.price}
               </p>
             </div>
-            <button className="btn btn-primary w-full sm:w-auto px-8 py-3.5 text-base" onClick={handleBuyNow}>
-              Buy Now
+            <button className="btn btn-primary w-full sm:w-auto px-8 py-3.5 text-base" onClick={handleBuyNow} disabled={isBuying}>
+              {isBuying ? <span className="spinner" /> : 'Buy Now →'}
             </button>
           </div>
         </div>
@@ -386,8 +399,8 @@ export default function Home() {
             </p>
             <p className="text-lg font-extrabold text-emerald-600">Rs. {selectedPlan.price}</p>
           </div>
-          <button className="btn btn-primary shrink-0 px-5 py-3 text-sm" onClick={handleBuyNow}>
-            Buy Now
+          <button className="btn btn-primary shrink-0 px-5 py-3 text-sm" onClick={handleBuyNow} disabled={isBuying}>
+            {isBuying ? <span className="spinner" /> : 'Buy Now →'}
           </button>
         </div>
       </div>

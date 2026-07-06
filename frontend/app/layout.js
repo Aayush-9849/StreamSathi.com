@@ -1,5 +1,13 @@
 import "./globals.css";
 import Header from "./components/Header";
+import { Outfit } from 'next/font/google';
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  display: 'swap',
+  variable: '--font-outfit',
+});
 
 export const metadata = {
   title: "StreamSathi | Premium Streaming Activations Nepal",
@@ -13,11 +21,14 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className={outfit.variable}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="theme-color" content="#2563eb" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://streamsathi-backend.onrender.com" />
         <link rel="icon" href="/streamsathi-favicon.svg?v=2" type="image/svg+xml" />
-        <link rel="shortcut icon" href="/streamsathi-favicon.svg?v=2" type="image/svg+xml" />
       </head>
       <body>
         <Header />
