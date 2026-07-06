@@ -12,6 +12,20 @@ const Order = require('../models/Order');
 const { protect } = require('../middleware/auth');
 const { getCookieOptions } = require('../utils/security');
 
+// Force IPv4 Lookup helper for Render containers (bypasses OS getaddrinfo IPv6 ordering)
+const forceIPv4Lookup = (hostname, options, callback) => {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  dns.resolve4(hostname, (err, addresses) => {
+    if (err || !addresses || !addresses[0]) {
+      return dns.lookup(hostname, { ...options, family: 4 }, callback);
+    }
+    callback(null, addresses[0], 4);
+  });
+};
+
 // Cached Transporter for Admin Emails
 let _cachedTransporter = null;
 const getTransporter = () => {
@@ -28,8 +42,12 @@ const getTransporter = () => {
       tls: {
         rejectUnauthorized: true,
       },
+      lookup: forceIPv4Lookup,        // Use custom IPv4 resolver
       family: 4,                      // Force IPv4
-      socketOptions: { family: 4 },   // Pass family:4 to underlying net.connect socket
+      socketOptions: {
+        family: 4,
+        lookup: forceIPv4Lookup,
+      },
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 15000,
@@ -256,7 +274,7 @@ router.post('/admin/send-email', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Admin send email error:', error);
-    if (error.code === 'EAUTH') _cachedTransporter = null;
+    _cachedTransporter = null; // Clear cached transporter on any error
     return res.status(500).json({ success: false, message: 'Failed to send email: ' + error.message });
   }
 });
