@@ -51,11 +51,7 @@ function CheckoutForm() {
         });
         const data = await res.json();
         if (data.success) {
-          if (!data.user.isVerified) {
-            router.push(`/verify?email=${encodeURIComponent(data.user.email)}&redirect=checkout&platform=${platform}&plan=${plan}&price=${price}`);
-          } else {
-            setUser(data.user);
-          }
+          setUser(data.user);
         } else {
           localStorage.removeItem('token');
           router.push(`/login?redirect=checkout&platform=${platform}&plan=${plan}&price=${price}`);

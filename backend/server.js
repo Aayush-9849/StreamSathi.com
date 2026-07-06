@@ -20,13 +20,14 @@ const settingRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+app.set('trust proxy', 1);
 
 // Security headers (helmet)
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // CORS — allow Vercel frontend and local dev
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3000',
+  ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim()) : []),
   'https://stream-sathi-com.vercel.app',
   'http://localhost:3000',
 ];
@@ -66,7 +67,8 @@ const authLimiter = rateLimit({
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes);
+app.use(['/api/auth/register', '/api/auth/login'], authLimiter);
+app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/settings', settingRoutes);

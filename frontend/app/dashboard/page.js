@@ -11,6 +11,7 @@ export default function UserDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,6 +89,39 @@ export default function UserDashboard() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!confirm('Delete your StreamSathi account permanently? This will remove your profile and order history.')) {
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+    const token = localStorage.getItem('token');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        localStorage.removeItem('token');
+        window.dispatchEvent(new Event('auth-change'));
+        router.push('/');
+      } else {
+        setError(data.message || 'Failed to delete account.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Connection error deleting account.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-10">
       
@@ -110,8 +144,26 @@ export default function UserDashboard() {
           </div>
           <div>
             <p className="text-slate-500 text-xs uppercase tracking-wider">Account Status</p>
-            <span className="badge badge-completed mt-1.5">Verified Account</span>
+            <span className="badge badge-completed mt-1.5">Active Account</span>
           </div>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-2xl p-5 md:p-6 shadow-xl border border-red-100">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-950">Account Settings</h2>
+            <p className="text-slate-500 text-xs mt-1">Delete your customer account and remove your saved order history.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+            className="btn btn-secondary py-2 px-4 text-xs rounded-xl w-full sm:w-auto"
+            style={{ color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.25)' }}
+          >
+            {deleting ? 'Deleting...' : 'Delete Account'}
+          </button>
         </div>
       </div>
 

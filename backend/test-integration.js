@@ -38,9 +38,9 @@ const makeRequest = (options, postData = null, isMultipart = false) => {
 const run = async () => {
   console.log('Starting StreamSathi integration tests...\n');
 
-  // Connect to DB directly to fetch OTPs
+  // Connect to DB directly to seed and clean test data
   await mongoose.connect(MONGO_URI);
-  console.log('Connected to MongoDB for OTP verification checks.');
+  console.log('Connected to MongoDB for integration checks.');
 
   // Clean test databases for a fresh test run (targeting only test sandboxed data)
   const User = mongoose.model('User', new mongoose.Schema({}, { strict: false }), 'users');
@@ -61,11 +61,14 @@ const run = async () => {
   await mongoose.connection.db.collection('users').updateOne(
     { email: 'kumaryada263@gmail.com' },
     {
+      $set: {
+        isAdmin: true,
+        isVerified: true
+      },
       $setOnInsert: {
         name: 'System Administrator',
         passwordHash,
-        whatsApp: '+977-9800000000',
-        isVerified: true
+        whatsApp: '+977-9800000000'
       }
     },
     { upsert: true }
@@ -119,34 +122,11 @@ const run = async () => {
   if (regRes.status !== 201 || !regRes.body.success) {
     throw new Error(`Registration failed: ${JSON.stringify(regRes.body)}`);
   }
-  console.log('Customer registered successfully. OTP requested.');
-
-  // 2. Fetch OTP from MongoDB
-  const customer = await User.findOne({ email: 'testuser@gmail.com' });
-  const customerOtp = customer.otpCode;
-  console.log(`Fetched OTP from MongoDB: ${customerOtp}`);
-
-  // 3. Verify OTP
-  console.log('\nStep 2: Activating customer account via OTP verification...');
-  const verifyRes = await makeRequest({
-    hostname: 'localhost',
-    port: 5001,
-    path: '/api/auth/verify-otp',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  }, {
-    email: 'testuser@gmail.com',
-    otpCode: customerOtp
-  });
-
-  if (verifyRes.status !== 200 || !verifyRes.body.success) {
-    throw new Error(`Verification failed: ${JSON.stringify(verifyRes.body)}`);
-  }
-  const customerToken = verifyRes.body.token;
-  console.log('Customer account activated. Token received.');
+  const customerToken = regRes.body.token;
+  console.log('Customer registered successfully and received a login token.');
 
   // 4. Place order with Multer file upload
-  console.log('\nStep 3: Simulating purchase checkout with receipt upload...');
+  console.log('\nStep 2: Simulating purchase checkout with receipt upload...');
   
   // Create a dummy image receipt file
   const dummyReceiptPath = path.join(__dirname, 'dummy_receipt.jpg');
@@ -190,7 +170,7 @@ const run = async () => {
   console.log(`Order placed successfully! Order ID: ${orderRes.body.order._id}. Status: ${orderRes.body.order.status}`);
 
   // 5. Query user orders
-  console.log('\nStep 4: Checking customer dashboard history...');
+  console.log('\nStep 3: Checking customer dashboard history...');
   const historyRes = await makeRequest({
     hostname: 'localhost',
     port: 5001,
@@ -205,7 +185,7 @@ const run = async () => {
   console.log(`Customer dashboard displays order with status: ${historyRes.body.orders[0].status}`);
 
   // 6. Login pre-seeded Admin user
-  console.log('\nStep 5: Logging in pre-seeded system administrator...');
+  console.log('\nStep 4: Logging in pre-seeded system administrator...');
   const adminLogin = await makeRequest({
     hostname: 'localhost',
     port: 5001,
@@ -222,10 +202,10 @@ const run = async () => {
   }
 
   const adminToken = adminLogin.body.token;
-  console.log('Administrator account verified and logged in.');
+  console.log('Administrator account logged in.');
 
   // 7. Get global orders as Admin
-  console.log('\nStep 6: Querying all global incoming orders as administrator...');
+  console.log('\nStep 5: Querying all global incoming orders as administrator...');
   const globalOrders = await makeRequest({
     hostname: 'localhost',
     port: 5001,
@@ -240,7 +220,23 @@ const run = async () => {
   }
   console.log(`Admin panel successfully retrieved global orders and found placed test order.`);
 
-  // 8. Update status to Active as Admin
+  // 8. Get customers as Admin
+  console.log('\nStep 6: Querying customer list as administrator...');
+  const customerList = await makeRequest({
+    hostname: 'localhost',
+    port: 5001,
+    path: '/api/auth/admin/customers',
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${adminToken}` }
+  });
+
+  const foundCustomer = customerList.body.customers.some(c => c.email === 'testuser@gmail.com');
+  if (customerList.status !== 200 || !foundCustomer) {
+    throw new Error(`Admin customer list failed to find test customer: ${JSON.stringify(customerList.body)}`);
+  }
+  console.log(`Admin customer list shows ${customerList.body.totalCustomers} customer account(s).`);
+
+  // 9. Update status to Active as Admin
   console.log('\nStep 7: Activating order and marking it as Active...');
   const updateRes = await makeRequest({
     hostname: 'localhost',
@@ -258,7 +254,7 @@ const run = async () => {
   }
   console.log('Admin marked activation order as Active.');
 
-  // 9. Re-check my orders as Customer
+  // 10. Re-check my orders as Customer
   console.log('\nStep 8: Checking customer history to verify activation status...');
   const finalCheck = await makeRequest({
     hostname: 'localhost',
@@ -272,6 +268,21 @@ const run = async () => {
     throw new Error(`Order was not activated successfully. Current status: ${finalCheck.body.orders[0].status}`);
   }
   console.log('Customer dashboard reflects updated status: Active.');
+
+  // 11. Delete customer account
+  console.log('\nStep 9: Deleting customer account...');
+  const deleteAccount = await makeRequest({
+    hostname: 'localhost',
+    port: 5001,
+    path: '/api/auth/me',
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${customerToken}` }
+  });
+
+  if (deleteAccount.status !== 200 || !deleteAccount.body.success) {
+    throw new Error(`Customer account deletion failed: ${JSON.stringify(deleteAccount.body)}`);
+  }
+  console.log('Customer account deleted successfully.');
 
   console.log('\n======================================');
   console.log('✓ ALL INTEGRATION TESTS PASSED CLEANLY!');

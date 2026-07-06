@@ -165,34 +165,6 @@ header {
   font-weight: 500;
 }
 
-/* Split OTP container */
-.split-otp-container {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin: 1.5rem 0;
-}
-
-.split-otp-input {
-  width: 50px;
-  height: 55px;
-  text-align: center;
-  font-size: 1.8rem;
-  font-weight: 700;
-  border-radius: 12px;
-  background-color: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  color: #172033;
-  outline: none;
-  transition: all 0.15s ease;
-}
-
-.split-otp-input:focus {
-  border-color: #2563eb;
-  background-color: #FFFFFF;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-}
-
 /* Segmented Payment Tabs */
 .payment-toggle-btn {
   flex: 1;

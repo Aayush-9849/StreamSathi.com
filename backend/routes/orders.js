@@ -6,6 +6,7 @@ const fs = require('fs');
 const Order = require('../models/Order');
 const Plan = require('../models/Plan');
 const { protect, verifiedOnly } = require('../middleware/auth');
+const { decryptText, encryptText } = require('../utils/security');
 
 // Ensure uploads folder exists
 const uploadDir = path.join(__dirname, '../uploads');
@@ -72,6 +73,14 @@ const autoExpireOrders = async () => {
   }
 };
 
+const serializeOrder = (order) => {
+  const serialized = typeof order.toObject === 'function' ? order.toObject() : order;
+  return {
+    ...serialized,
+    targetStreamingPassword: decryptText(serialized.targetStreamingPassword),
+  };
+};
+
 // @desc    Place a subscription order (screenshot required)
 // @route   POST /api/orders/place-order
 // @access  Private (Verified users only)
@@ -98,6 +107,12 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
       return res.status(400).json({ success: false, message: 'All text fields are required.' });
     }
 
+    const parsedAmount = Number(amountPaidNPR);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ success: false, message: 'Paid amount must be a valid positive number.' });
+    }
+
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Please upload a payment success receipt screenshot.' });
     }
@@ -108,11 +123,11 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
       await fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ success: false, message: 'Selected plan not found. Please go back and choose a valid plan.' });
     }
-    if (Number(amountPaidNPR) < plan.price) {
+    if (parsedAmount !== plan.price) {
       await fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(400).json({
         success: false,
-        message: `Amount mismatch. Expected Rs. ${plan.price} for ${platform} ${planSelected}.`,
+        message: `Amount mismatch. Please pay the exact Rs. ${plan.price} for ${platform} ${planSelected}.`,
       });
     }
 
@@ -138,9 +153,9 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
         userId: req.user._id,
         platform,
         planSelected,
-        amountPaidNPR: Number(amountPaidNPR),
-        targetStreamingGmail,
-        targetStreamingPassword,
+        amountPaidNPR: parsedAmount,
+        targetStreamingGmail: String(targetStreamingGmail).trim(),
+        targetStreamingPassword: encryptText(targetStreamingPassword),
         paymentMethod,
         paymentScreenshotUrl,
         status: 'Pending',
@@ -154,7 +169,7 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
     return res.status(201).json({
       success: true,
       message: 'Subscription order placed successfully! Awaiting verification.',
-      order,
+      order: serializeOrder(order),
     });
   } catch (error) {
     console.error('Place order error:', error);
@@ -169,7 +184,7 @@ router.get('/my-orders', protect, async (req, res) => {
   try {
     await autoExpireOrders();
     const orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    return res.status(200).json({ success: true, orders });
+    return res.status(200).json({ success: true, orders: orders.map(serializeOrder) });
   } catch (error) {
     console.error('Fetch my-orders error:', error);
     return res.status(500).json({ success: false, message: 'Server error retrieving your order history.' });
@@ -190,7 +205,7 @@ router.get('/admin/all', protect, async (req, res) => {
       .populate('userId', 'name email whatsApp')
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({ success: true, orders });
+    return res.status(200).json({ success: true, orders: orders.map(serializeOrder) });
   } catch (error) {
     console.error('Fetch global orders error:', error);
     return res.status(500).json({ success: false, message: 'Server error retrieving administration records.' });
@@ -227,7 +242,7 @@ router.put('/admin/update-status/:id', protect, async (req, res) => {
     return res.status(200).json({
       success: true,
       message: `Order status updated to ${status}.`,
-      order,
+      order: serializeOrder(order),
     });
   } catch (error) {
     console.error('Update status error:', error);

@@ -52,11 +52,13 @@ function PlanRow({ plan, onUpdate }) {
 export default function AdminDashboard() {
   const router = useRouter();
   
-  // Tabs: 'orders', 'prices', 'qrCodes'
+  // Tabs: 'orders', 'customers', 'prices', 'qrCodes'
   const [activeTab, setActiveTab] = useState('orders');
   
   // Orders State
   const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [totalCustomers, setTotalCustomers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedScreenshotUrl, setSelectedScreenshotUrl] = useState('');
@@ -105,6 +107,38 @@ export default function AdminDashboard() {
     }
   }, [router]);
 
+  const fetchCustomers = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/customers`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.status === 403) {
+        setError('Access denied. Administrator session is required.');
+        setLoading(false);
+        return;
+      }
+
+      if (data.success) {
+        setCustomers(data.customers);
+        setTotalCustomers(data.totalCustomers);
+      } else {
+        setError(data.message || 'Failed to fetch customer records.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Connection failure loading customer records.');
+    }
+  }, [router]);
+
   const fetchStorefrontConfig = useCallback(async () => {
     try {
       const plansRes = await fetch(`${API_BASE_URL}/api/plans`);
@@ -126,10 +160,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
       void fetchGlobalOrders();
+      void fetchCustomers();
       void fetchStorefrontConfig();
     }, 0);
     return () => window.clearTimeout(loadTimer);
-  }, [fetchGlobalOrders, fetchStorefrontConfig]);
+  }, [fetchGlobalOrders, fetchCustomers, fetchStorefrontConfig]);
 
   const handleUpdateStatus = async (orderId, targetStatus) => {
     if (!confirm(`Are you sure you want to mark this activation order as ${targetStatus}?`)) {
@@ -270,6 +305,7 @@ export default function AdminDashboard() {
         </div>
         <button onClick={() => {
           void fetchGlobalOrders();
+          void fetchCustomers();
           void fetchStorefrontConfig();
         }} className="btn btn-secondary py-2 px-4 text-xs rounded-xl shadow-sm w-full sm:w-auto">
           🔄 Refresh Dashboard
@@ -283,6 +319,12 @@ export default function AdminDashboard() {
           className={`py-3 px-4 font-bold text-sm transition-all duration-150 border-b-2 whitespace-nowrap ${activeTab === 'orders' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           📥 Activations ({orders.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('customers')}
+          className={`py-3 px-4 font-bold text-sm transition-all duration-150 border-b-2 whitespace-nowrap ${activeTab === 'customers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Customers ({totalCustomers})
         </button>
         <button
           onClick={() => setActiveTab('prices')}
@@ -440,7 +482,69 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* Tab 2: Pricing */}
+      {/* Tab 2: Customers */}
+      {activeTab === 'customers' && (
+        <div className="glass-card rounded-2xl p-5 md:p-8 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-slate-100 pb-6 mb-6">
+            <div>
+              <h2 className="text-lg md:text-xl font-bold text-slate-950">Customers</h2>
+              <p className="text-slate-500 text-xs mt-1">Total registered customer accounts: {totalCustomers}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void fetchCustomers()}
+              className="btn btn-secondary py-2 px-4 text-xs rounded-xl w-full sm:w-auto"
+            >
+              Refresh Customers
+            </button>
+          </div>
+
+          {customers.length === 0 ? (
+            <div className="text-center py-16">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-lg font-extrabold text-slate-500">0</span>
+              <h3 className="font-bold text-slate-950 text-base mt-4">No customers yet</h3>
+              <p className="text-slate-500 text-xs mt-1">Customer accounts will appear here after registration.</p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="table-el">
+                <thead>
+                  <tr>
+                    <th>Joined</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>WhatsApp</th>
+                    <th>Orders</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((customer) => (
+                    <tr key={customer._id}>
+                      <td className="text-slate-600">
+                        {new Date(customer.createdAt).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </td>
+                      <td className="font-bold text-slate-950">{customer.name}</td>
+                      <td className="font-mono text-xs text-blue-700">{customer.email}</td>
+                      <td className="text-slate-600">{customer.whatsApp}</td>
+                      <td className="font-bold text-slate-950">{customer.totalOrders}</td>
+                      <td>
+                        <span className="badge badge-completed">Active</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Pricing */}
       {activeTab === 'prices' && (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8">
@@ -464,7 +568,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Tab 3: QRs */}
+      {/* Tab 4: QRs */}
       {activeTab === 'qrCodes' && (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8">

@@ -16,7 +16,7 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'streamsathi_jwt_secret_token_2026_key');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id).select('-passwordHash');
     if (!req.user) {
       return res.status(404).json({ success: false, message: 'User session has expired or user was deleted.' });
@@ -29,9 +29,6 @@ const protect = async (req, res, next) => {
 };
 
 const verifiedOnly = (req, res, next) => {
-  if (!req.user || !req.user.isVerified) {
-    return res.status(403).json({ success: false, message: 'Access denied. Account email is not verified.' });
-  }
   next();
 };
 

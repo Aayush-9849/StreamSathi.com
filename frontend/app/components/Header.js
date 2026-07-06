@@ -66,7 +66,7 @@ export default function Header() {
     router.push('/login');
   };
 
-  const isAdmin = user && user.email === 'kumaryada263@gmail.com';
+  const isAdmin = Boolean(user?.isAdmin);
 
   return (
     <header>

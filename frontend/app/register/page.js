@@ -36,7 +36,9 @@ export default function Register() {
 
       const data = await res.json();
       if (data.success) {
-        router.push(`/verify?email=${encodeURIComponent(formData.email)}`);
+        localStorage.setItem('token', data.token);
+        window.dispatchEvent(new Event('auth-change'));
+        router.push('/dashboard');
       } else {
         setError(data.message || 'Registration failed. Please try again.');
       }
@@ -55,7 +57,7 @@ export default function Register() {
           Create an Account
         </h2>
         <p style={{ color: '#526071', fontSize: '0.9rem', textAlign: 'center', marginBottom: '2rem' }}>
-          Register to StreamSathi to activate your premium plans
+          Register to StreamSathi and start buying premium plans
         </p>
 
         {error && (

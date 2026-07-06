@@ -13,7 +13,6 @@ function LoginForm() {
     password: '',
   });
   const [error, setError] = useState('');
-  const [notVerified, setNotVerified] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -30,7 +29,6 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setNotVerified(false);
     setLoading(true);
 
     try {
@@ -44,10 +42,7 @@ function LoginForm() {
 
       const data = await res.json();
       
-      if (res.status === 403 && data.notVerified) {
-        setNotVerified(true);
-        setError(data.message);
-      } else if (data.success) {
+      if (data.success) {
         localStorage.setItem('token', data.token);
         window.dispatchEvent(new Event('auth-change'));
 
@@ -85,16 +80,6 @@ function LoginForm() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg mb-6 text-sm">
             {error}
-            {notVerified && (
-              <div style={{ marginTop: '0.5rem' }}>
-                <Link
-                  href={`/verify?email=${encodeURIComponent(formData.email)}&redirect=${searchParams.get('redirect') || ''}&platform=${searchParams.get('platform') || ''}&plan=${searchParams.get('plan') || ''}&price=${searchParams.get('price') || ''}`}
-                  style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}
-                >
-                  Click here to verify email address
-                </Link>
-              </div>
-            )}
           </div>
         )}
 
