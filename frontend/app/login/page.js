@@ -56,6 +56,9 @@ function LoginForm() {
         } else {
           router.push('/');
         }
+      } else if (data.notVerified && data.email) {
+        // Account not verified — redirect to OTP verify page
+        router.push(`/verify?email=${encodeURIComponent(data.email)}`);
       } else {
         setError(data.message || 'Invalid credentials. Please try again.');
       }

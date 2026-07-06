@@ -36,15 +36,14 @@ export default function Register() {
 
       const data = await res.json();
       if (data.success) {
-        localStorage.setItem('token', data.token);
-        window.dispatchEvent(new Event('auth-change'));
-        router.push('/dashboard');
+        // Redirect to verify page with email pre-filled
+        router.push(`/verify?email=${encodeURIComponent(data.email || formData.email)}`);
       } else {
         setError(data.message || 'Registration failed. Please try again.');
       }
     } catch (err) {
       console.error(err);
-      setError('Connection failed. Make sure backend server is running.');
+      setError('Connection failed. Please check your internet connection.');
     } finally {
       setLoading(false);
     }
