@@ -74,6 +74,13 @@ export default function AdminDashboard() {
   const [esewaPreview, setEsewaPreview] = useState('');
   const [khaltiPreview, setKhaltiPreview] = useState('');
 
+  // Email Sender State
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailTitle, setEmailTitle] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+
   const fetchGlobalOrders = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -258,6 +265,45 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSendEmail = async (e) => {
+    e.preventDefault();
+    if (!emailRecipient || !emailSubject || !emailMessage) {
+      alert('Please provide Recipient Email, Subject, and Message.');
+      return;
+    }
+    setSendingEmail(true);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipientEmail: emailRecipient,
+          subject: emailSubject,
+          title: emailTitle,
+          message: emailMessage
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Email sent successfully to ${emailRecipient}!`);
+        setEmailSubject('');
+        setEmailTitle('');
+        setEmailMessage('');
+      } else {
+        alert(data.message || 'Failed to send email.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error while sending email.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-20 text-slate-500">Loading administrative records...</div>;
   }
@@ -337,6 +383,12 @@ export default function AdminDashboard() {
           className={`py-3 px-4 font-bold text-sm transition-all duration-150 border-b-2 whitespace-nowrap ${activeTab === 'qrCodes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           📷 Merchant Wallet QRs
+        </button>
+        <button
+          onClick={() => setActiveTab('sendEmail')}
+          className={`py-3 px-4 font-bold text-sm transition-all duration-150 border-b-2 whitespace-nowrap ${activeTab === 'sendEmail' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          ✉️ Send Email
         </button>
       </div>
 
@@ -516,6 +568,7 @@ export default function AdminDashboard() {
                     <th>WhatsApp</th>
                     <th>Orders</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -534,6 +587,17 @@ export default function AdminDashboard() {
                       <td className="font-bold text-slate-950">{customer.totalOrders}</td>
                       <td>
                         <span className="badge badge-completed">Active</span>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => {
+                            setEmailRecipient(customer.email);
+                            setActiveTab('sendEmail');
+                          }}
+                          className="btn btn-secondary py-1 px-3 text-xs rounded-lg text-blue-600 hover:bg-blue-50 hover:border-blue-200 shadow-sm"
+                        >
+                          Email ✉️
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -658,6 +722,122 @@ export default function AdminDashboard() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* Tab 5: Send Email */}
+      {activeTab === 'sendEmail' && (
+        <div className="glass-card rounded-2xl p-6 md:p-8 max-w-2xl mx-auto border border-slate-100 bg-white shadow-xl">
+          <div className="border-b border-slate-100 pb-4 mb-6">
+            <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+              <span>✉️ Send Direct Email to Customer</span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-1">
+              Send personalized updates, activation instructions, or support messages directly to any registered customer.
+            </p>
+          </div>
+
+          <form onSubmit={handleSendEmail} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Quick Select Customer
+              </label>
+              <select
+                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
+                value={emailRecipient}
+                onChange={(e) => setEmailRecipient(e.target.value)}
+              >
+                <option value="">-- Choose a Customer from Database ({customers.length}) --</option>
+                {customers.map((c) => (
+                  <option key={c._id} value={c.email}>
+                    {c.name} ({c.email}) - {c.totalOrders} order(s)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Recipient Email Address *
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="customer@example.com"
+                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono"
+                value={emailRecipient}
+                onChange={(e) => setEmailRecipient(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Email Heading / Title (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Your Subscription is Now Active!"
+                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-semibold"
+                value={emailTitle}
+                onChange={(e) => setEmailTitle(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Email Subject Line *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. StreamSathi Account & Order Update"
+                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Message Content *
+              </label>
+              <textarea
+                required
+                rows={6}
+                placeholder="Type your message here. Line breaks and paragraphs will be automatically styled."
+                className="w-full text-sm border border-slate-200 rounded-xl p-3.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-sans leading-relaxed"
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+              />
+            </div>
+
+            <div className="pt-3 flex justify-end gap-3 border-t border-slate-100 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmailSubject('');
+                  setEmailTitle('');
+                  setEmailMessage('');
+                }}
+                className="btn btn-secondary px-5 py-2.5 text-xs rounded-xl"
+              >
+                Clear Form
+              </button>
+              <button
+                type="submit"
+                disabled={sendingEmail || !emailRecipient || !emailSubject || !emailMessage}
+                className="btn btn-primary px-6 py-2.5 text-xs rounded-xl shadow-sm"
+              >
+                {sendingEmail ? (
+                  <>
+                    <span className="spinner mr-2" /> Sending Email...
+                  </>
+                ) : (
+                  'Send Email Now 🚀'
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

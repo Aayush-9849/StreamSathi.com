@@ -2,10 +2,34 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { protect } = require('../middleware/auth');
 const { getCookieOptions } = require('../utils/security');
+
+// Cached Transporter for Admin Emails
+let _cachedTransporter = null;
+const getTransporter = () => {
+  if (_cachedTransporter) return _cachedTransporter;
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    _cachedTransporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // STARTTLS
+      family: 4,     // Force IPv4 — prevents ENETUNREACH on Render
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: true,
+      },
+    });
+    return _cachedTransporter;
+  }
+  return null;
+};
 
 // Generate JWT Helper
 const generateToken = (id) => {
@@ -157,6 +181,75 @@ router.get('/admin/customers', protect, async (req, res) => {
   } catch (error) {
     console.error('Fetch customers error:', error);
     return res.status(500).json({ success: false, message: 'Server error retrieving customers.' });
+  }
+});
+
+// @desc    Admin send custom email to any customer
+// @route   POST /api/auth/admin/send-email
+// @access  Private (Admin Only)
+router.post('/admin/send-email', protect, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
+    const { recipientEmail, subject, title, message } = req.body;
+    if (!recipientEmail || !subject || !message) {
+      return res.status(400).json({ success: false, message: 'Recipient email, subject, and message are required.' });
+    }
+
+    const transporter = getTransporter();
+    if (!transporter) {
+      return res.status(500).json({ success: false, message: 'Email server is not configured (missing EMAIL_USER or EMAIL_PASS).' });
+    }
+
+    const formattedMessage = String(message)
+      .split('\n')
+      .map(p => p.trim())
+      .filter(p => p.length > 0)
+      .map(p => `<p style="color: #374151; margin: 0 0 16px; font-size: 15px; line-height: 1.6; text-align: left;">${p}</p>`)
+      .join('');
+
+    const htmlContent = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc; padding: 32px; border-radius: 12px;">
+        <div style="background: linear-gradient(135deg, #2563eb, #06b6d4); border-radius: 10px; padding: 24px; text-align: center; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.2);">
+          <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 800;">StreamSathi</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 6px 0 0; font-size: 13px; font-weight: 500;">Secure Activation Platform</p>
+        </div>
+        <div style="background: white; border-radius: 10px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+          ${title ? `<h2 style="color: #111827; margin: 0 0 20px; font-size: 20px; font-weight: 700; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">${title}</h2>` : ''}
+          ${formattedMessage}
+          <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #64748b; font-size: 14px; margin: 0 0 4px; font-weight: 600;">Best Regards,</p>
+            <p style="color: #2563eb; font-size: 15px; font-weight: 700; margin: 0;">The StreamSathi Team</p>
+          </div>
+        </div>
+        <div style="text-align: center; margin-top: 24px;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} StreamSathi Nepal. All rights reserved.</p>
+          <p style="color: #94a3b8; font-size: 11px; margin: 6px 0 0;">This email was sent to ${recipientEmail} from StreamSathi customer support.</p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: '"StreamSathi Support" <' + process.env.EMAIL_USER + '>',
+      to: recipientEmail,
+      subject: subject,
+      html: htmlContent,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Admin email sent to ' + recipientEmail + ': ' + info.messageId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email sent successfully to ' + recipientEmail + '!',
+      messageId: info.messageId,
+    });
+  } catch (error) {
+    console.error('Admin send email error:', error);
+    if (error.code === 'EAUTH') _cachedTransporter = null;
+    return res.status(500).json({ success: false, message: 'Failed to send email: ' + error.message });
   }
 });
 
