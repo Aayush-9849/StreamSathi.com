@@ -5,8 +5,21 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const dns = require('dns');
 if (dns.setDefaultResultOrder) {
-  dns.setDefaultResultOrder('ipv4first'); // Force IPv4 globally for Render containers
+  dns.setDefaultResultOrder('ipv4first');
 }
+const _originalLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  } else if (typeof options === 'number') {
+    options = { family: options };
+  } else if (!options) {
+    options = {};
+  }
+  options.family = 4;
+  return _originalLookup(hostname, options, callback);
+};
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { protect } = require('../middleware/auth');

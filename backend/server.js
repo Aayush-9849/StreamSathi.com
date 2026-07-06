@@ -1,8 +1,23 @@
 require('dotenv').config();
 const dns = require('dns');
 if (dns.setDefaultResultOrder) {
-  dns.setDefaultResultOrder('ipv4first'); // Force IPv4 globally for Render containers
+  dns.setDefaultResultOrder('ipv4first');
 }
+// Globally intercept all DNS lookups to strictly enforce IPv4 (family: 4)
+// This prevents Render Docker containers from attempting IPv6 connections (ENETUNREACH)
+const _originalLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  } else if (typeof options === 'number') {
+    options = { family: options };
+  } else if (!options) {
+    options = {};
+  }
+  options.family = 4;
+  return _originalLookup(hostname, options, callback);
+};
 
 const express = require('express');
 const mongoose = require('mongoose');
