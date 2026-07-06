@@ -1,4 +1,9 @@
 require('dotenv').config();
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first'); // Force IPv4 globally for Render containers
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');

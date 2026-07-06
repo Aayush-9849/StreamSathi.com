@@ -3,6 +3,10 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first'); // Force IPv4 globally for Render containers
+}
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { protect } = require('../middleware/auth');
@@ -17,7 +21,6 @@ const getTransporter = () => {
       host: 'smtp.gmail.com',
       port: 587,
       secure: false, // STARTTLS
-      family: 4,     // Force IPv4 — prevents ENETUNREACH on Render
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -25,6 +28,11 @@ const getTransporter = () => {
       tls: {
         rejectUnauthorized: true,
       },
+      family: 4,                      // Force IPv4
+      socketOptions: { family: 4 },   // Pass family:4 to underlying net.connect socket
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
     });
     return _cachedTransporter;
   }
