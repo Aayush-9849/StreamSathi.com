@@ -36,8 +36,9 @@ export default function Register() {
 
       const data = await res.json();
       if (data.success) {
-        // Redirect to verify page with email pre-filled
-        router.push(`/verify?email=${encodeURIComponent(data.email || formData.email)}`);
+        localStorage.setItem('token', data.token);
+        window.dispatchEvent(new Event('auth-change'));
+        router.push('/dashboard');
       } else {
         setError(data.message || 'Registration failed. Please try again.');
       }
