@@ -50,39 +50,75 @@ const forceIPv4Lookup = (hostname, options, callback) => {
 let _cachedTransporter = null;
 
 /**
- * Resolve smtp.gmail.com to an IPv4 address ONCE and create the transporter
- * pointed at that IP. This completely bypasses nodemailer's internal dual-stack
- * DNS resolver which caches both IPv4+IPv6 and can fail on Render (ENETUNREACH).
+ * Send email with automatic fallback between port 465 (TLS), port 587 (STARTTLS),
+ * and directly resolved IPv4 addresses. This solves Connection Timeout issues
+ * on cloud hosting providers like Render, AWS, or Vercel.
  */
-const getTransporter = async () => {
-  if (_cachedTransporter) return _cachedTransporter;
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+const sendMailWithFallback = async (mailOptions) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error('Email server is not configured (missing EMAIL_USER or EMAIL_PASS).');
+  }
 
-  // Resolve to IPv4 address using our forceIPv4Lookup helper
-  const smtpIp = await new Promise((resolve, reject) => {
-    forceIPv4Lookup('smtp.gmail.com', {}, (err, address) => {
-      if (err) return reject(err);
-      resolve(address);
+  // Resolve IPv4 once as fallback
+  let resolvedIp = null;
+  try {
+    resolvedIp = await new Promise((resolve) => {
+      forceIPv4Lookup('smtp.gmail.com', {}, (err, address) => {
+        resolve(err ? null : address);
+      });
     });
-  });
+  } catch (e) {}
 
-  _cachedTransporter = nodemailer.createTransport({
-    host: smtpIp,                    // Connect directly to resolved IPv4 address
-    port: 465,
-    secure: true,                    // Use direct TLS (port 465) — more reliable than STARTTLS
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    tls: {
-      servername: 'smtp.gmail.com',  // Required for TLS certificate validation when using IP
-      rejectUnauthorized: true,
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000,
-  });
-  return _cachedTransporter;
+  const configs = [
+    { port: 465, host: 'smtp.gmail.com', name: 'Hostname TLS (port 465)' },
+    { port: 587, host: 'smtp.gmail.com', name: 'Hostname STARTTLS (port 587)' },
+  ];
+  if (resolvedIp) {
+    configs.push({ port: 465, host: resolvedIp, name: `Direct IPv4 TLS (${resolvedIp}:465)` });
+    configs.push({ port: 587, host: resolvedIp, name: `Direct IPv4 STARTTLS (${resolvedIp}:587)` });
+  }
+
+  // If we already have a cached transporter that worked before, try it first!
+  if (_cachedTransporter) {
+    try {
+      return await _cachedTransporter.sendMail(mailOptions);
+    } catch (err) {
+      console.warn('Cached transporter failed, retrying with fallback strategies:', err.message);
+      _cachedTransporter = null;
+    }
+  }
+
+  let lastError = null;
+  for (const cfg of configs) {
+    try {
+      console.log(`Attempting email delivery via ${cfg.name}...`);
+      const transporter = nodemailer.createTransport({
+        host: cfg.host,
+        port: cfg.port,
+        secure: cfg.port === 465,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+          servername: 'smtp.gmail.com',
+          rejectUnauthorized: true,
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 15000,
+      });
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`✅ Successfully sent email via ${cfg.name}!`);
+      _cachedTransporter = transporter; // Cache the winning transporter
+      return info;
+    } catch (err) {
+      console.warn(`❌ Strategy [${cfg.name}] failed:`, err.message);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('All SMTP connection strategies failed.');
 };
 
 const getEmailConfigStatus = async () => {
@@ -100,25 +136,76 @@ const getEmailConfigStatus = async () => {
     };
   }
 
-  try {
-    const transporter = await getTransporter();
-    await transporter.verify();
-    return {
-      configured,
-      verified: true,
-      emailUser: maskedUser,
-      message: 'Email sender is configured and Gmail SMTP accepted the credentials.',
-    };
-  } catch (error) {
-    _cachedTransporter = null;
-    return {
-      configured,
-      verified: false,
-      emailUser: maskedUser,
-      message: error.message,
-      code: error.code,
-    };
+  if (_cachedTransporter) {
+    try {
+      await _cachedTransporter.verify();
+      return {
+        configured,
+        verified: true,
+        emailUser: maskedUser,
+        message: 'Email sender is configured and verified.',
+      };
+    } catch (e) {
+      _cachedTransporter = null;
+    }
   }
+
+  let resolvedIp = null;
+  try {
+    resolvedIp = await new Promise((resolve) => {
+      forceIPv4Lookup('smtp.gmail.com', {}, (err, address) => {
+        resolve(err ? null : address);
+      });
+    });
+  } catch (e) {}
+
+  const configs = [
+    { port: 465, host: 'smtp.gmail.com', name: 'Hostname TLS (port 465)' },
+    { port: 587, host: 'smtp.gmail.com', name: 'Hostname STARTTLS (port 587)' },
+  ];
+  if (resolvedIp) {
+    configs.push({ port: 465, host: resolvedIp, name: `Direct IPv4 TLS (${resolvedIp}:465)` });
+    configs.push({ port: 587, host: resolvedIp, name: `Direct IPv4 STARTTLS (${resolvedIp}:587)` });
+  }
+
+  let lastErr = null;
+  for (const cfg of configs) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: cfg.host,
+        port: cfg.port,
+        secure: cfg.port === 465,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+          servername: 'smtp.gmail.com',
+          rejectUnauthorized: true,
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 15000,
+      });
+      await transporter.verify();
+      _cachedTransporter = transporter;
+      return {
+        configured,
+        verified: true,
+        emailUser: maskedUser,
+        message: `Verified successfully via ${cfg.name}!`,
+      };
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  return {
+    configured,
+    verified: false,
+    emailUser: maskedUser,
+    message: lastErr ? lastErr.message : 'SMTP verification failed.',
+  };
 };
 
 // Generate JWT Helper
@@ -317,8 +404,7 @@ router.post('/admin/send-email', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide a valid recipient email address.' });
     }
 
-    const transporter = await getTransporter();
-    if (!transporter) {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       return res.status(500).json({ success: false, message: 'Email server is not configured (missing EMAIL_USER or EMAIL_PASS).' });
     }
 
@@ -359,7 +445,7 @@ router.post('/admin/send-email', protect, async (req, res) => {
       html: htmlContent,
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailWithFallback(mailOptions);
     console.log('Admin email sent to ' + recipientEmail + ': ' + info.messageId);
 
     await User.findOneAndUpdate(
