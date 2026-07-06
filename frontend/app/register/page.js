@@ -23,15 +23,27 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    const trimmedEmail = String(formData.email || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          name: String(formData.name || '').trim(),
+          email: trimmedEmail,
+          whatsApp: String(formData.whatsApp || '').trim(),
+        }),
       });
 
       const data = await res.json();

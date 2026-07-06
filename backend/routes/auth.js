@@ -25,6 +25,13 @@ const Order = require('../models/Order');
 const { protect } = require('../middleware/auth');
 const { getCookieOptions } = require('../utils/security');
 
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 // Force IPv4 Lookup helper for Render containers (bypasses OS getaddrinfo IPv6 ordering)
 const forceIPv4Lookup = (hostname, options, callback) => {
   if (typeof options === 'function') {
@@ -41,33 +48,77 @@ const forceIPv4Lookup = (hostname, options, callback) => {
 
 // Cached Transporter for Admin Emails
 let _cachedTransporter = null;
-const getTransporter = () => {
+
+/**
+ * Resolve smtp.gmail.com to an IPv4 address ONCE and create the transporter
+ * pointed at that IP. This completely bypasses nodemailer's internal dual-stack
+ * DNS resolver which caches both IPv4+IPv6 and can fail on Render (ENETUNREACH).
+ */
+const getTransporter = async () => {
   if (_cachedTransporter) return _cachedTransporter;
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    _cachedTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // STARTTLS
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: true,
-      },
-      lookup: forceIPv4Lookup,        // Use custom IPv4 resolver
-      family: 4,                      // Force IPv4
-      socketOptions: {
-        family: 4,
-        lookup: forceIPv4Lookup,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+
+  // Resolve to IPv4 address using our forceIPv4Lookup helper
+  const smtpIp = await new Promise((resolve, reject) => {
+    forceIPv4Lookup('smtp.gmail.com', {}, (err, address) => {
+      if (err) return reject(err);
+      resolve(address);
     });
-    return _cachedTransporter;
+  });
+
+  _cachedTransporter = nodemailer.createTransport({
+    host: smtpIp,                    // Connect directly to resolved IPv4 address
+    port: 465,
+    secure: true,                    // Use direct TLS (port 465) — more reliable than STARTTLS
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+      servername: 'smtp.gmail.com',  // Required for TLS certificate validation when using IP
+      rejectUnauthorized: true,
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
+  });
+  return _cachedTransporter;
+};
+
+const getEmailConfigStatus = async () => {
+  const configured = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  const maskedUser = process.env.EMAIL_USER
+    ? process.env.EMAIL_USER.replace(/(^.).*(@.*$)/, '$1***$2')
+    : null;
+
+  if (!configured) {
+    return {
+      configured,
+      verified: false,
+      emailUser: maskedUser,
+      message: 'EMAIL_USER and EMAIL_PASS must be set on the backend server.',
+    };
   }
-  return null;
+
+  try {
+    const transporter = await getTransporter();
+    await transporter.verify();
+    return {
+      configured,
+      verified: true,
+      emailUser: maskedUser,
+      message: 'Email sender is configured and Gmail SMTP accepted the credentials.',
+    };
+  } catch (error) {
+    _cachedTransporter = null;
+    return {
+      configured,
+      verified: false,
+      emailUser: maskedUser,
+      message: error.message,
+      code: error.code,
+    };
+  }
 };
 
 // Generate JWT Helper
@@ -79,7 +130,9 @@ const generateToken = (id) => {
 // @route   POST /api/auth/register
 // @access  Public
 router.post('/register', async (req, res) => {
-  const { name, password, whatsApp } = req.body;
+  const name = String(req.body.name || '').trim();
+  const password = req.body.password;
+  const whatsApp = String(req.body.whatsApp || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
 
   try {
@@ -146,6 +199,11 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter email and password.' });
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ success: false, message: 'Invalid credentials.' });
@@ -201,7 +259,7 @@ router.get('/admin/customers', protect, async (req, res) => {
     }
 
     const customers = await User.find({ isAdmin: { $ne: true } })
-      .select('name email whatsApp isVerified createdAt')
+      .select('name email whatsApp isVerified createdAt emailStatus emailMessageId emailError')
       .sort({ createdAt: -1 });
 
     const orderCounts = await Order.aggregate([
@@ -223,6 +281,23 @@ router.get('/admin/customers', protect, async (req, res) => {
   }
 });
 
+// @desc    Check admin email sender configuration
+// @route   GET /api/auth/admin/email-status
+// @access  Private (Admin Only)
+router.get('/admin/email-status', protect, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
+    const status = await getEmailConfigStatus();
+    return res.status(200).json({ success: true, ...status });
+  } catch (error) {
+    console.error('Email status check error:', error);
+    return res.status(500).json({ success: false, message: 'Server error checking email sender.' });
+  }
+});
+
 // @desc    Admin send custom email to any customer
 // @route   POST /api/auth/admin/send-email
 // @access  Private (Admin Only)
@@ -237,7 +312,12 @@ router.post('/admin/send-email', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Recipient email, subject, and message are required.' });
     }
 
-    const transporter = getTransporter();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(String(recipientEmail).trim())) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid recipient email address.' });
+    }
+
+    const transporter = await getTransporter();
     if (!transporter) {
       return res.status(500).json({ success: false, message: 'Email server is not configured (missing EMAIL_USER or EMAIL_PASS).' });
     }
@@ -246,8 +326,10 @@ router.post('/admin/send-email', protect, async (req, res) => {
       .split('\n')
       .map(p => p.trim())
       .filter(p => p.length > 0)
-      .map(p => `<p style="color: #374151; margin: 0 0 16px; font-size: 15px; line-height: 1.6; text-align: left;">${p}</p>`)
+      .map(p => `<p style="color: #374151; margin: 0 0 16px; font-size: 15px; line-height: 1.6; text-align: left;">${escapeHtml(p)}</p>`)
       .join('');
+    const safeTitle = escapeHtml(title);
+    const safeRecipientEmail = escapeHtml(recipientEmail);
 
     const htmlContent = `
       <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc; padding: 32px; border-radius: 12px;">
@@ -256,7 +338,7 @@ router.post('/admin/send-email', protect, async (req, res) => {
           <p style="color: rgba(255,255,255,0.9); margin: 6px 0 0; font-size: 13px; font-weight: 500;">Secure Activation Platform</p>
         </div>
         <div style="background: white; border-radius: 10px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
-          ${title ? `<h2 style="color: #111827; margin: 0 0 20px; font-size: 20px; font-weight: 700; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">${title}</h2>` : ''}
+          ${safeTitle ? `<h2 style="color: #111827; margin: 0 0 20px; font-size: 20px; font-weight: 700; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">${safeTitle}</h2>` : ''}
           ${formattedMessage}
           <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
             <p style="color: #64748b; font-size: 14px; margin: 0 0 4px; font-weight: 600;">Best Regards,</p>
@@ -265,20 +347,25 @@ router.post('/admin/send-email', protect, async (req, res) => {
         </div>
         <div style="text-align: center; margin-top: 24px;">
           <p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} StreamSathi Nepal. All rights reserved.</p>
-          <p style="color: #94a3b8; font-size: 11px; margin: 6px 0 0;">This email was sent to ${recipientEmail} from StreamSathi customer support.</p>
+          <p style="color: #94a3b8; font-size: 11px; margin: 6px 0 0;">This email was sent to ${safeRecipientEmail} from StreamSathi customer support.</p>
         </div>
       </div>
     `;
 
     const mailOptions = {
       from: '"StreamSathi Support" <' + process.env.EMAIL_USER + '>',
-      to: recipientEmail,
-      subject: subject,
+      to: String(recipientEmail).trim(),
+      subject: String(subject).trim(),
       html: htmlContent,
     };
 
     const info = await transporter.sendMail(mailOptions);
     console.log('Admin email sent to ' + recipientEmail + ': ' + info.messageId);
+
+    await User.findOneAndUpdate(
+      { email: String(recipientEmail).trim().toLowerCase() },
+      { emailStatus: 'sent', emailMessageId: info.messageId, $unset: { emailError: 1 } }
+    ).catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -288,6 +375,10 @@ router.post('/admin/send-email', protect, async (req, res) => {
   } catch (error) {
     console.error('Admin send email error:', error);
     _cachedTransporter = null; // Clear cached transporter on any error
+    await User.findOneAndUpdate(
+      { email: String(req.body.recipientEmail || '').trim().toLowerCase() },
+      { emailStatus: 'failed', emailError: error.message }
+    ).catch(() => {});
     return res.status(500).json({ success: false, message: 'Failed to send email: ' + error.message });
   }
 });

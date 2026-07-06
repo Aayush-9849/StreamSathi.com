@@ -269,8 +269,42 @@ const run = async () => {
   }
   console.log('Customer dashboard reflects updated status: Active.');
 
-  // 11. Delete customer account
-  console.log('\nStep 9: Deleting customer account...');
+  // 11. Check email configuration status and test validation as Admin
+  console.log('\nStep 9: Checking admin email sender status and validation...');
+  const emailStatusRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5001,
+    path: '/api/auth/admin/email-status',
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${adminToken}` }
+  });
+  if (emailStatusRes.status !== 200) {
+    throw new Error(`Admin email status check failed: ${JSON.stringify(emailStatusRes.body)}`);
+  }
+  console.log(`Email sender status check verified. Configured: ${emailStatusRes.body.configured}`);
+
+  // Test send email validation (invalid email format should reject)
+  const invalidEmailRes = await makeRequest({
+    hostname: 'localhost',
+    port: 5001,
+    path: '/api/auth/admin/send-email',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${adminToken}`
+    }
+  }, {
+    recipientEmail: 'invalid-email-address',
+    subject: 'Test Subject',
+    message: 'Test Message'
+  });
+  if (invalidEmailRes.status !== 400 || !invalidEmailRes.body.message.includes('valid recipient email')) {
+    throw new Error(`Email validation check failed: ${JSON.stringify(invalidEmailRes.body)}`);
+  }
+  console.log('Admin email validation correctly rejected invalid email format.');
+
+  // 12. Delete customer account
+  console.log('\nStep 10: Deleting customer account...');
   const deleteAccount = await makeRequest({
     hostname: 'localhost',
     port: 5001,

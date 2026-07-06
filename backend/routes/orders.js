@@ -113,6 +113,12 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
       return res.status(400).json({ success: false, message: 'Paid amount must be a valid positive number.' });
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if ((platform === 'Netflix' || platform === 'Amazon Prime') && !emailRegex.test(String(targetStreamingGmail).trim())) {
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ success: false, message: `Please provide a valid streaming email address for ${platform}.` });
+    }
+
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Please upload a payment success receipt screenshot.' });
     }
@@ -145,7 +151,9 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
       });
     }
 
-    const paymentScreenshotUrl = `/uploads/${req.file.filename}`;
+    const fileBuffer = await fs.promises.readFile(req.file.path);
+    const paymentScreenshotUrl = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
+    await fs.promises.unlink(req.file.path).catch(() => {});
 
     let order;
     try {
@@ -161,8 +169,6 @@ router.post('/place-order', protect, verifiedOnly, uploadSingle('screenshot'), a
         status: 'Pending',
       });
     } catch (dbErr) {
-      // Cleanup uploaded file if DB save fails
-      await fs.promises.unlink(req.file.path).catch(() => {});
       throw dbErr;
     }
 

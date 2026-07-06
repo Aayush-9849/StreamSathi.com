@@ -130,8 +130,8 @@ function CheckoutForm() {
       formData.append('platform', platform);
       formData.append('planSelected', plan);
       formData.append('amountPaidNPR', price);
-      formData.append('targetStreamingGmail', targetGmail);
-      formData.append('targetStreamingPassword', targetPassword);
+      formData.append('targetStreamingGmail', String(targetGmail || '').trim());
+      formData.append('targetStreamingPassword', String(targetPassword || '').trim());
       formData.append('paymentMethod', paymentMethod);
       formData.append('screenshot', screenshotFile);
 

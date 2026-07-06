@@ -93,30 +93,30 @@ router.post('/upload-qr', protect, uploadQr, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please upload a QR code image.' });
     }
 
-    const valuePath = `/uploads/${req.file.filename}`;
+    const fileBuffer = await fs.promises.readFile(req.file.path);
+    const base64Image = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
+    await fs.promises.unlink(req.file.path).catch(() => {});
 
     let setting = await Setting.findOne({ key });
     if (setting) {
-      // Delete old custom QR file asynchronously if it was previously uploaded
-      if (setting.value.startsWith('/uploads/')) {
+      // Delete old custom QR file asynchronously if it was previously uploaded as a disk file
+      if (setting.value && setting.value.startsWith('/uploads/')) {
         const oldFilePath = path.join(__dirname, '..', setting.value);
-        await fs.promises.unlink(oldFilePath).catch((err) => {
-          console.error('Failed to delete old QR image:', err.message);
-        });
+        await fs.promises.unlink(oldFilePath).catch(() => {});
       }
-      setting.value = valuePath;
+      setting.value = base64Image;
       setting.updatedAt = Date.now();
       await setting.save();
     } else {
-      setting = await Setting.create({ key, value: valuePath });
+      setting = await Setting.create({ key, value: base64Image });
     }
 
-    console.log(`Merchant QR Code updated [${key}]: ${valuePath}`);
+    console.log(`Merchant QR Code updated [${key}] as permanent Base64 Data URI`);
 
     return res.status(200).json({
       success: true,
       message: `Successfully updated ${key === 'esewa_qr' ? 'eSewa' : 'Khalti'} QR code representation.`,
-      value: valuePath,
+      value: base64Image,
     });
   } catch (error) {
     console.error('Upload QR error:', error);

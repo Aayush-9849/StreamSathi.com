@@ -52,7 +52,7 @@ function PlanRow({ plan, onUpdate }) {
 export default function AdminDashboard() {
   const router = useRouter();
   
-  // Tabs: 'orders', 'customers', 'prices', 'qrCodes'
+  // Tabs: 'orders', 'customers', 'prices', 'qrCodes', 'sendEmail'
   const [activeTab, setActiveTab] = useState('orders');
   
   // Orders State
@@ -80,6 +80,8 @@ export default function AdminDashboard() {
   const [emailTitle, setEmailTitle] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
 
   const fetchGlobalOrders = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -164,14 +166,48 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchEmailStatus = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setCheckingEmailStatus(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin/email-status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmailStatus(data);
+      } else {
+        setEmailStatus({
+          configured: false,
+          verified: false,
+          message: data.message || 'Unable to check email sender.',
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setEmailStatus({
+        configured: false,
+        verified: false,
+        message: 'Network error while checking email sender.',
+      });
+    } finally {
+      setCheckingEmailStatus(false);
+    }
+  }, []);
+
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
       void fetchGlobalOrders();
       void fetchCustomers();
       void fetchStorefrontConfig();
+      void fetchEmailStatus();
     }, 0);
     return () => window.clearTimeout(loadTimer);
-  }, [fetchGlobalOrders, fetchCustomers, fetchStorefrontConfig]);
+  }, [fetchGlobalOrders, fetchCustomers, fetchStorefrontConfig, fetchEmailStatus]);
 
   const handleUpdateStatus = async (orderId, targetStatus) => {
     if (!confirm(`Are you sure you want to mark this activation order as ${targetStatus}?`)) {
@@ -267,10 +303,22 @@ export default function AdminDashboard() {
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
-    if (!emailRecipient || !emailSubject || !emailMessage) {
+    const trimmedRecipient = String(emailRecipient || '').trim();
+    const trimmedSubject = String(emailSubject || '').trim();
+    const trimmedTitle = String(emailTitle || '').trim();
+    const trimmedMessage = String(emailMessage || '').trim();
+
+    if (!trimmedRecipient || !trimmedSubject || !trimmedMessage) {
       alert('Please provide Recipient Email, Subject, and Message.');
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedRecipient)) {
+      alert('Please enter a valid recipient email address.');
+      return;
+    }
+
     setSendingEmail(true);
     const token = localStorage.getItem('token');
     try {
@@ -281,10 +329,10 @@ export default function AdminDashboard() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          recipientEmail: emailRecipient,
-          subject: emailSubject,
-          title: emailTitle,
-          message: emailMessage
+          recipientEmail: trimmedRecipient,
+          subject: trimmedSubject,
+          title: trimmedTitle,
+          message: trimmedMessage
         })
       });
       const data = await res.json();
@@ -340,6 +388,26 @@ export default function AdminDashboard() {
     }
   };
 
+  const applyEmailTemplate = (type) => {
+    if (type === 'activated') {
+      setEmailTitle('Your Subscription is Now Active! 🎉');
+      setEmailSubject('[StreamSathi] Order #Active - Your Account Credentials');
+      setEmailMessage('Hello!\n\nGreat news — your subscription order has been verified and activated! You can now log into your account and start enjoying your favorite content.\n\nIf you have any questions or need assistance, feel free to reply to this email.\n\nHappy Streaming!\nTeam StreamSathi Nepal');
+    } else if (type === 'payment') {
+      setEmailTitle('We Received Your Payment! ⏳');
+      setEmailSubject('[StreamSathi] Payment Verified - Order Processing');
+      setEmailMessage('Hi there,\n\nWe have successfully received and verified your payment screenshot. Our team is currently setting up your subscription credentials.\n\nYou will receive another email within 15-30 minutes once your account is fully activated.\n\nThank you for choosing StreamSathi!');
+    } else if (type === 'renewal') {
+      setEmailTitle('Time to Renew Your Subscription 🔄');
+      setEmailSubject('[StreamSathi] Your Subscription is Expiring Soon');
+      setEmailMessage('Hello,\n\nWe hope you are enjoying your streaming experience! This is a quick reminder that your current subscription plan will be expiring soon.\n\nTo avoid any interruption in your service, please visit our website and scan the merchant QR code to renew your plan today.\n\nBest regards,\nTeam StreamSathi Nepal');
+    } else if (type === 'support') {
+      setEmailTitle('StreamSathi Support Response 💬');
+      setEmailSubject('[StreamSathi] Re: Your Support Inquiry');
+      setEmailMessage('Hello,\n\nThank you for reaching out to StreamSathi Support.\n\nWe have reviewed your request and our technical team has resolved the issue. Please check your account and let us know if everything is working smoothly now.\n\nWishing you a great day!\nStreamSathi Support Team');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       
@@ -353,6 +421,7 @@ export default function AdminDashboard() {
           void fetchGlobalOrders();
           void fetchCustomers();
           void fetchStorefrontConfig();
+          void fetchEmailStatus();
         }} className="btn btn-secondary py-2 px-4 text-xs rounded-xl shadow-sm w-full sm:w-auto">
           🔄 Refresh Dashboard
         </button>
@@ -493,7 +562,7 @@ export default function AdminDashboard() {
                   {/* Actions */}
                   <div className="flex flex-col gap-2 mt-4">
                     <button
-                      onClick={() => setSelectedScreenshotUrl(`${API_BASE_URL}${order.paymentScreenshotUrl}`)}
+                      onClick={() => setSelectedScreenshotUrl(order.paymentScreenshotUrl?.startsWith('/uploads/') ? `${API_BASE_URL}${order.paymentScreenshotUrl}` : order.paymentScreenshotUrl)}
                       className="btn btn-secondary w-full py-2 text-xs rounded-xl shadow-sm"
                     >
                       View Receipt Screenshot 🖼️
@@ -582,7 +651,19 @@ export default function AdminDashboard() {
                         })}
                       </td>
                       <td className="font-bold text-slate-950">{customer.name}</td>
-                      <td className="font-mono text-xs text-blue-700">{customer.email}</td>
+                      <td className="font-mono text-xs text-blue-700">
+                        <div>{customer.email}</div>
+                        {customer.emailStatus === 'sent' && (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] rounded border border-emerald-200">
+                            ✉️ Sent
+                          </span>
+                        )}
+                        {customer.emailStatus === 'failed' && (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 bg-rose-50 text-rose-700 text-[10px] rounded border border-rose-200" title={customer.emailError}>
+                            ⚠️ Failed
+                          </span>
+                        )}
+                      </td>
                       <td className="text-slate-600">{customer.whatsApp}</td>
                       <td className="font-bold text-slate-950">{customer.totalOrders}</td>
                       <td>
@@ -727,117 +808,281 @@ export default function AdminDashboard() {
 
       {/* Tab 5: Send Email */}
       {activeTab === 'sendEmail' && (
-        <div className="glass-card rounded-2xl p-6 md:p-8 max-w-2xl mx-auto border border-slate-100 bg-white shadow-xl">
-          <div className="border-b border-slate-100 pb-4 mb-6">
-            <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-              <span>✉️ Send Direct Email to Customer</span>
-            </h3>
-            <p className="text-slate-500 text-xs mt-1">
-              Send personalized updates, activation instructions, or support messages directly to any registered customer.
-            </p>
+        <div className="max-w-5xl mx-auto flex flex-col gap-8">
+          {/* Executive Header Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden border border-slate-800">
+            <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute left-1/3 -top-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider mb-3">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                  Direct Gmail SMTP Relay
+                </div>
+                <h3 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+                  <span>🚀 Executive Mail Cockpit</span>
+                </h3>
+                <p className="text-slate-300 text-xs md:text-sm mt-2 max-w-xl leading-relaxed">
+                  Send personalized branded notifications, instant credentials, and support messages directly to subscribers&apos; inboxes with real-time preview.
+                </p>
+              </div>
+
+              {/* Status Badge & Check Button */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${emailStatus?.verified ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 animate-pulse'}`} />
+                  <div>
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">SMTP Status</p>
+                    <p className="text-xs font-extrabold text-white">
+                      {checkingEmailStatus ? 'Checking...' : (emailStatus?.verified ? '🟢 Online & Ready' : '🟡 Needs Attention')}
+                    </p>
+                    {emailStatus?.emailUser && (
+                      <p className="text-[10px] font-mono text-blue-300 mt-0.5">{emailStatus.emailUser}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void fetchEmailStatus()}
+                  disabled={checkingEmailStatus}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10 shadow-sm whitespace-nowrap"
+                >
+                  {checkingEmailStatus ? '⏳ Testing...' : '🔄 Verify SMTP'}
+                </button>
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleSendEmail} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Quick Select Customer
-              </label>
-              <select
-                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white"
-                value={emailRecipient}
-                onChange={(e) => setEmailRecipient(e.target.value)}
-              >
-                <option value="">-- Choose a Customer from Database ({customers.length}) --</option>
-                {customers.map((c) => (
-                  <option key={c._id} value={c.email}>
-                    {c.name} ({c.email}) - {c.totalOrders} order(s)
-                  </option>
-                ))}
-              </select>
+          {/* Composer & Live Preview Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* Left Box: Composer Form (7 cols) */}
+            <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-xl relative">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                <h4 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                  <span>✍️ Message Composer</span>
+                </h4>
+                <span className="text-xs text-slate-400 font-semibold">All fields marked * are required</span>
+              </div>
+
+              {/* Quick Templates Bar */}
+              <div className="mb-6">
+                <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                  <span>⚡ Quick Message Templates</span>
+                  <span className="text-[10px] font-normal text-slate-400 lowercase">(click to auto-fill)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applyEmailTemplate('activated')}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                  >
+                    🎉 Order Activated
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyEmailTemplate('payment')}
+                    className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                  >
+                    ⏳ Payment Received
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyEmailTemplate('renewal')}
+                    className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                  >
+                    🔄 Renewal Notice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyEmailTemplate('support')}
+                    className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                  >
+                    💬 Support Reply
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleSendEmail} className="flex flex-col gap-5">
+                {/* Customer Selector */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                    👤 Quick Select Customer
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-slate-50/70 text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all font-medium appearance-none shadow-sm cursor-pointer"
+                      value={emailRecipient}
+                      onChange={(e) => setEmailRecipient(e.target.value)}
+                    >
+                      <option value="">-- Choose a Customer from Database ({customers.length}) --</option>
+                      {customers.map((c) => (
+                        <option key={c._id} value={c.email}>
+                          {c.name} ({c.email}) - {c.totalOrders} order(s)
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recipient Email Input */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                    📧 Recipient Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="customer@example.com"
+                    className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 font-mono font-semibold transition-all shadow-sm"
+                    value={emailRecipient}
+                    onChange={(e) => setEmailRecipient(e.target.value)}
+                  />
+                </div>
+
+                {/* Heading Input */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                    🏷️ Email Heading / Badge Title <span className="text-slate-400 font-normal lowercase">(optional banner text)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Your Subscription is Now Active!"
+                    className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 font-bold transition-all shadow-sm"
+                    value={emailTitle}
+                    onChange={(e) => setEmailTitle(e.target.value)}
+                  />
+                </div>
+
+                {/* Subject Line Input */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                    📌 Email Subject Line *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. StreamSathi Account & Order Update"
+                    className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 font-medium transition-all shadow-sm"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                  />
+                </div>
+
+                {/* Message Content */}
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                    📝 Message Content * <span className="text-slate-400 font-normal lowercase">(supports paragraphs and auto-formatting)</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={6}
+                    placeholder="Type your personalized message here..."
+                    className="w-full text-sm border-2 border-slate-200 rounded-2xl p-4 bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 font-sans leading-relaxed transition-all shadow-sm resize-y"
+                    value={emailMessage}
+                    onChange={(e) => setEmailMessage(e.target.value)}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-4 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailSubject('');
+                      setEmailTitle('');
+                      setEmailMessage('');
+                    }}
+                    className="btn btn-secondary px-6 py-3 text-xs font-bold rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                  >
+                    🗑️ Clear Form
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sendingEmail || !emailRecipient || !emailSubject || !emailMessage}
+                    className="px-8 py-3.5 text-xs font-extrabold rounded-2xl shadow-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+                  >
+                    {sendingEmail ? (
+                      <>
+                        <span className="spinner mr-2 border-white border-t-transparent" /> Sending Branded Mail...
+                      </>
+                    ) : (
+                      <>
+                        <span>Send Branded Email Now</span>
+                        <span className="text-base">🚀</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Recipient Email Address *
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="customer@example.com"
-                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono"
-                value={emailRecipient}
-                onChange={(e) => setEmailRecipient(e.target.value)}
-              />
+            {/* Right Box: Live Gmail Preview (5 cols) */}
+            <div className="lg:col-span-5 bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800 shadow-2xl text-slate-100 sticky top-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">📱 Live Inbox Preview</span>
+              </div>
+
+              {/* Email Client Header */}
+              <div className="space-y-3 pb-4 border-b border-slate-800 text-xs">
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>From: <strong className="text-white">StreamSathi Nepal</strong> &lt;{emailStatus?.emailUser || 'no-reply@streamsathi.com'}&gt;</span>
+                  <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300 font-mono">Inbox</span>
+                </div>
+                <div>
+                  <span className="text-slate-400">To: </span>
+                  <span className="font-mono text-blue-400">{emailRecipient || 'customer@example.com'}</span>
+                </div>
+                <div className="pt-1">
+                  <h5 className="text-base font-extrabold text-white leading-snug">
+                    {emailSubject || 'StreamSathi Account & Order Update'}
+                  </h5>
+                </div>
+              </div>
+
+              {/* Formatted HTML Email Body Card Mockup */}
+              <div className="mt-6 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-inner">
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden text-slate-800">
+                  {/* Mock Email Header */}
+                  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-center">
+                    <h2 className="text-white font-black text-base tracking-wide">
+                      {emailTitle || 'StreamSathi Notification'}
+                    </h2>
+                  </div>
+                  
+                  {/* Mock Email Body */}
+                  <div className="p-6 text-xs md:text-sm leading-relaxed whitespace-pre-line font-sans text-slate-700 bg-slate-50 min-h-[160px]">
+                    {emailMessage || 'As you type your message on the left, you will see a real-time preview of how your customer will view this branded email inside their Gmail app!'}
+                  </div>
+
+                  {/* Mock Email Footer */}
+                  <div className="bg-slate-100 px-6 py-3 text-center border-t border-slate-200">
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      © 2026 StreamSathi Nepal. Secure Activation Platform.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  100% Mobile & Desktop Responsive
+                </span>
+                <span className="font-mono text-blue-400">TLS 1.3 Encrypted</span>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Email Heading / Title (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Your Subscription is Now Active!"
-                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-semibold"
-                value={emailTitle}
-                onChange={(e) => setEmailTitle(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Email Subject Line *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. StreamSathi Account & Order Update"
-                className="w-full text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600"
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Message Content *
-              </label>
-              <textarea
-                required
-                rows={6}
-                placeholder="Type your message here. Line breaks and paragraphs will be automatically styled."
-                className="w-full text-sm border border-slate-200 rounded-xl p-3.5 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-sans leading-relaxed"
-                value={emailMessage}
-                onChange={(e) => setEmailMessage(e.target.value)}
-              />
-            </div>
-
-            <div className="pt-3 flex justify-end gap-3 border-t border-slate-100 mt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmailSubject('');
-                  setEmailTitle('');
-                  setEmailMessage('');
-                }}
-                className="btn btn-secondary px-5 py-2.5 text-xs rounded-xl"
-              >
-                Clear Form
-              </button>
-              <button
-                type="submit"
-                disabled={sendingEmail || !emailRecipient || !emailSubject || !emailMessage}
-                className="btn btn-primary px-6 py-2.5 text-xs rounded-xl shadow-sm"
-              >
-                {sendingEmail ? (
-                  <>
-                    <span className="spinner mr-2" /> Sending Email...
-                  </>
-                ) : (
-                  'Send Email Now 🚀'
-                )}
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
       )}
 
