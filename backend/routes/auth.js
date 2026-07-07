@@ -55,6 +55,52 @@ let _cachedTransporter = null;
  * on cloud hosting providers like Render, AWS, or Vercel.
  */
 const sendMailWithFallback = async (mailOptions) => {
+  // 1. Try Brevo HTTPS API (port 443 — never blocked by Render Free Tier)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      console.log('Attempting email delivery via Brevo HTTPS API...');
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', 'accept': 'application/json' },
+        body: JSON.stringify({
+          sender: { name: 'StreamSathi Support', email: process.env.EMAIL_USER || 'support@streamsathi.com' },
+          to: [{ email: mailOptions.to }],
+          subject: mailOptions.subject,
+          htmlContent: mailOptions.html
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || JSON.stringify(data));
+      console.log('✅ Successfully sent email via Brevo HTTPS API!');
+      return { messageId: data.messageId || 'brevo-' + Date.now() };
+    } catch (err) {
+      console.warn('❌ Brevo HTTPS API failed:', err.message);
+    }
+  }
+
+  // 2. Try Resend HTTPS API (port 443 — never blocked by Render Free Tier)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      console.log('Attempting email delivery via Resend HTTPS API...');
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'StreamSathi <onboarding@resend.dev>',
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || JSON.stringify(data));
+      console.log('✅ Successfully sent email via Resend HTTPS API!');
+      return { messageId: data.id || 'resend-' + Date.now() };
+    } catch (err) {
+      console.warn('❌ Resend HTTPS API failed:', err.message);
+    }
+  }
+
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     throw new Error('Email server is not configured (missing EMAIL_USER or EMAIL_PASS).');
   }
