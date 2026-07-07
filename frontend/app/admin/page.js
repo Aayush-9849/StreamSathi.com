@@ -808,96 +808,60 @@ export default function AdminDashboard() {
 
       {/* Tab 5: Send Email */}
       {activeTab === 'sendEmail' && (
-        <div className="max-w-5xl mx-auto flex flex-col gap-8">
-          {/* Executive Header Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden border border-slate-800">
-            <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute left-1/3 -top-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-            
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider mb-3">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                  Direct Gmail SMTP Relay
-                </div>
-                <h3 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-                  <span>🚀 Executive Mail Cockpit</span>
-                </h3>
-                <p className="text-slate-300 text-xs md:text-sm mt-2 max-w-xl leading-relaxed">
-                  Send personalized branded notifications, instant credentials, and support messages directly to subscribers&apos; inboxes with real-time preview.
-                </p>
-              </div>
-
-              {/* Status Badge & Check Button */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${emailStatus?.verified ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 animate-pulse'}`} />
-                  <div>
-                    <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">SMTP Status</p>
-                    <p className="text-xs font-extrabold text-white">
-                      {checkingEmailStatus ? 'Checking...' : (emailStatus?.verified ? '🟢 Online & Ready' : '🟡 Needs Attention')}
-                    </p>
-                    {emailStatus?.emailUser && (
-                      <p className="text-[10px] font-mono text-blue-300 mt-0.5">{emailStatus.emailUser}</p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void fetchEmailStatus()}
-                  disabled={checkingEmailStatus}
-                  className="px-4 py-2 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10 shadow-sm whitespace-nowrap"
-                >
-                  {checkingEmailStatus ? '⏳ Testing...' : '🔄 Verify SMTP'}
-                </button>
-              </div>
+        <div className="max-w-5xl mx-auto">
+          {/* Top Status Bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white px-6 py-5 rounded-3xl border border-slate-100 shadow-sm mb-6">
+            <div>
+              <h3 className="text-xl font-extrabold text-slate-900 flex items-center gap-2.5">
+                <span>✉️ Direct Subscriber Emailing</span>
+              </h3>
+              <p className="text-slate-500 text-xs font-medium mt-1">
+                Send instant credentials, renewal notices, and branded messages directly to customer inboxes.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">Cloud Relay Active</span>
             </div>
           </div>
 
-          {/* Composer & Live Preview Grid */}
+          {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* Left Box: Composer Form (7 cols) */}
-            <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-xl relative">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
-                <h4 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                  <span>✍️ Message Composer</span>
-                </h4>
-                <span className="text-xs text-slate-400 font-semibold">All fields marked * are required</span>
-              </div>
-
+            {/* Left Column: Composer Form (7 cols) */}
+            <div className="lg:col-span-7 bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-xl">
+              
               {/* Quick Templates Bar */}
-              <div className="mb-6">
-                <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <span>⚡ Quick Message Templates</span>
-                  <span className="text-[10px] font-normal text-slate-400 lowercase">(click to auto-fill)</span>
+              <div className="mb-6 pb-6 border-b border-slate-100">
+                <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-3">
+                  ⚡ Quick Message Templates
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => applyEmailTemplate('activated')}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                    className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     🎉 Order Activated
                   </button>
                   <button
                     type="button"
                     onClick={() => applyEmailTemplate('payment')}
-                    className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                    className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     ⏳ Payment Received
                   </button>
                   <button
                     type="button"
                     onClick={() => applyEmailTemplate('renewal')}
-                    className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                    className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     🔄 Renewal Notice
                   </button>
                   <button
                     type="button"
                     onClick={() => applyEmailTemplate('support')}
-                    className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold transition-all shadow-sm flex items-center gap-1 hover:-translate-y-0.5"
+                    className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     💬 Support Reply
                   </button>
@@ -908,22 +872,22 @@ export default function AdminDashboard() {
                 {/* Customer Selector */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
-                    👤 Quick Select Customer
+                    Select Customer
                   </label>
                   <div className="relative">
                     <select
-                      className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-slate-50/70 text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all font-medium appearance-none shadow-sm cursor-pointer"
+                      className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all font-semibold appearance-none cursor-pointer"
                       value={emailRecipient}
                       onChange={(e) => setEmailRecipient(e.target.value)}
                     >
-                      <option value="">-- Choose a Customer from Database ({customers.length}) --</option>
+                      <option value="">-- Choose a customer from database ({customers.length}) --</option>
                       {customers.map((c) => (
                         <option key={c._id} value={c.email}>
                           {c.name} ({c.email}) - {c.totalOrders} order(s)
                         </option>
                       ))}
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 font-bold">
                       ▼
                     </div>
                   </div>
@@ -932,7 +896,7 @@ export default function AdminDashboard() {
                 {/* Recipient Email Input */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
-                    📧 Recipient Email Address *
+                    Recipient Email Address *
                   </label>
                   <input
                     type="email"
@@ -947,7 +911,7 @@ export default function AdminDashboard() {
                 {/* Heading Input */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
-                    🏷️ Email Heading / Badge Title <span className="text-slate-400 font-normal lowercase">(optional banner text)</span>
+                    Email Banner Heading
                   </label>
                   <input
                     type="text"
@@ -961,13 +925,13 @@ export default function AdminDashboard() {
                 {/* Subject Line Input */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
-                    📌 Email Subject Line *
+                    Subject Line *
                   </label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. StreamSathi Account & Order Update"
-                    className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 font-medium transition-all shadow-sm"
+                    className="w-full text-sm border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 font-semibold transition-all shadow-sm"
                     value={emailSubject}
                     onChange={(e) => setEmailSubject(e.target.value)}
                   />
@@ -976,7 +940,7 @@ export default function AdminDashboard() {
                 {/* Message Content */}
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
-                    📝 Message Content * <span className="text-slate-400 font-normal lowercase">(supports paragraphs and auto-formatting)</span>
+                    Message Body *
                   </label>
                   <textarea
                     required
@@ -997,23 +961,23 @@ export default function AdminDashboard() {
                       setEmailTitle('');
                       setEmailMessage('');
                     }}
-                    className="btn btn-secondary px-6 py-3 text-xs font-bold rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                    className="px-5 py-3 text-xs font-bold rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all"
                   >
-                    🗑️ Clear Form
+                    Clear Form
                   </button>
                   <button
                     type="submit"
                     disabled={sendingEmail || !emailRecipient || !emailSubject || !emailMessage}
-                    className="px-8 py-3.5 text-xs font-extrabold rounded-2xl shadow-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+                    className="px-8 py-3 text-xs font-extrabold rounded-2xl shadow-lg text-white bg-blue-600 hover:bg-blue-700 transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
                   >
                     {sendingEmail ? (
                       <>
-                        <span className="spinner mr-2 border-white border-t-transparent" /> Sending Branded Mail...
+                        <span className="spinner mr-2 border-white border-t-transparent" /> Sending...
                       </>
                     ) : (
                       <>
-                        <span>Send Branded Email Now</span>
-                        <span className="text-base">🚀</span>
+                        <span>Send Email Now</span>
+                        <span>🚀</span>
                       </>
                     )}
                   </button>
@@ -1021,64 +985,56 @@ export default function AdminDashboard() {
               </form>
             </div>
 
-            {/* Right Box: Live Gmail Preview (5 cols) */}
-            <div className="lg:col-span-5 bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800 shadow-2xl text-slate-100 sticky top-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" />
-                  <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />
-                </div>
-                <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">📱 Live Inbox Preview</span>
+            {/* Right Column: Live Gmail Card Preview (5 cols) */}
+            <div className="lg:col-span-5 bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl text-slate-100 sticky top-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+                <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <span>📱 Live Customer Inbox Preview</span>
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                  Ready to Send
+                </span>
               </div>
 
-              {/* Email Client Header */}
-              <div className="space-y-3 pb-4 border-b border-slate-800 text-xs">
+              {/* Email Metadata */}
+              <div className="space-y-2.5 pb-4 border-b border-slate-800 text-xs">
                 <div className="flex justify-between items-center text-slate-400">
-                  <span>From: <strong className="text-white">StreamSathi Nepal</strong> &lt;{emailStatus?.emailUser || 'no-reply@streamsathi.com'}&gt;</span>
+                  <span>From: <strong className="text-white">StreamSathi Nepal</strong></span>
                   <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300 font-mono">Inbox</span>
                 </div>
                 <div>
                   <span className="text-slate-400">To: </span>
-                  <span className="font-mono text-blue-400">{emailRecipient || 'customer@example.com'}</span>
+                  <span className="font-mono text-blue-400 font-semibold">{emailRecipient || 'customer@example.com'}</span>
                 </div>
                 <div className="pt-1">
-                  <h5 className="text-base font-extrabold text-white leading-snug">
+                  <h5 className="text-sm font-extrabold text-white leading-snug">
                     {emailSubject || 'StreamSathi Account & Order Update'}
                   </h5>
                 </div>
               </div>
 
-              {/* Formatted HTML Email Body Card Mockup */}
-              <div className="mt-6 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-inner">
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden text-slate-800">
-                  {/* Mock Email Header */}
-                  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-center">
-                    <h2 className="text-white font-black text-base tracking-wide">
+              {/* Formatted Card Mockup */}
+              <div className="mt-5 bg-slate-950 p-3 rounded-2xl border border-slate-800/80 shadow-inner">
+                <div className="bg-white rounded-xl shadow-md overflow-hidden text-slate-800">
+                  {/* Banner Header */}
+                  <div className="bg-blue-600 px-6 py-4 text-center">
+                    <h2 className="text-white font-extrabold text-sm tracking-wide">
                       {emailTitle || 'StreamSathi Notification'}
                     </h2>
                   </div>
                   
-                  {/* Mock Email Body */}
-                  <div className="p-6 text-xs md:text-sm leading-relaxed whitespace-pre-line font-sans text-slate-700 bg-slate-50 min-h-[160px]">
-                    {emailMessage || 'As you type your message on the left, you will see a real-time preview of how your customer will view this branded email inside their Gmail app!'}
+                  {/* Body Text */}
+                  <div className="p-6 text-xs leading-relaxed whitespace-pre-line font-sans text-slate-700 bg-slate-50/50 min-h-[140px]">
+                    {emailMessage || 'As you type your message on the left, you will see a real-time preview of how your customer will view this branded email inside their inbox!'}
                   </div>
 
-                  {/* Mock Email Footer */}
-                  <div className="bg-slate-100 px-6 py-3 text-center border-t border-slate-200">
+                  {/* Footer */}
+                  <div className="bg-slate-100/80 px-6 py-3 text-center border-t border-slate-200/60">
                     <p className="text-[10px] text-slate-500 font-medium">
-                      © 2026 StreamSathi Nepal. Secure Activation Platform.
+                      © {new Date().getFullYear()} StreamSathi Nepal. Secure Activation Platform.
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  100% Mobile & Desktop Responsive
-                </span>
-                <span className="font-mono text-blue-400">TLS 1.3 Encrypted</span>
               </div>
             </div>
 
