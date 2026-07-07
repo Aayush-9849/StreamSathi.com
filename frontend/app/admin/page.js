@@ -7,21 +7,45 @@ import { API_BASE_URL } from '../config';
 function PlanRow({ plan, onUpdate }) {
   const [price, setPrice] = useState(plan.price);
   const [details, setDetails] = useState(plan.details);
+  const [active, setActive] = useState(plan.active !== false);
   const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
+  useEffect(() => {
+    setPrice(plan.price);
+    setDetails(plan.details);
+    setActive(plan.active !== false);
+  }, [plan]);
+
+  const handleSave = async (newActive = active) => {
     setSaving(true);
-    await onUpdate(plan._id, price, details);
+    await onUpdate(plan._id, price, details, newActive);
     setSaving(false);
   };
 
+  const toggleActive = () => {
+    const nextState = !active;
+    setActive(nextState);
+    void handleSave(nextState);
+  };
+
   return (
-    <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div className="flex-1 flex flex-col gap-1 w-full">
-        <span className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{plan.name}</span>
+    <div className={`border rounded-xl p-4 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${active ? 'border-slate-200 bg-white shadow-xs' : 'border-dashed border-slate-300 bg-slate-100/70 opacity-75'}`}>
+      <div className="flex-1 flex flex-col gap-2 w-full">
+        <div className="flex items-center gap-2.5">
+          <span className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{plan.name}</span>
+          <button
+            type="button"
+            onClick={toggleActive}
+            disabled={saving}
+            className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${active ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200' : 'bg-slate-200 text-slate-600 border border-slate-300 hover:bg-slate-300'}`}
+            title="Click to toggle plan visibility on website"
+          >
+            {active ? '🟢 Shown on Site' : '🚫 Hidden (Disabled)'}
+          </button>
+        </div>
         <input
           type="text"
-          className="w-full text-xs border border-slate-200 rounded px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:border-indigo-500"
+          className="w-full text-xs border border-slate-200 rounded px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:border-indigo-500 font-medium"
           value={details}
           onChange={(e) => setDetails(e.target.value)}
           placeholder="Plan description details note"
@@ -38,9 +62,9 @@ function PlanRow({ plan, onUpdate }) {
           />
         </div>
         <button
-          onClick={handleSave}
+          onClick={() => void handleSave(active)}
           disabled={saving}
-          className="btn btn-primary px-4 py-1.5 text-xs rounded-lg shrink-0 shadow-sm w-full sm:w-auto"
+          className="btn btn-primary px-4 py-1.5 text-xs rounded-lg shrink-0 shadow-sm w-full sm:w-auto font-bold"
         >
           {saving ? 'Saving...' : 'Save 💾'}
         </button>
@@ -238,7 +262,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleUpdatePlan = async (planId, price, details) => {
+  const handleUpdatePlan = async (planId, price, details, active, silent = false) => {
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE_URL}/api/plans/${planId}`, {
@@ -247,19 +271,35 @@ export default function AdminDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ price: Number(price), details })
+        body: JSON.stringify({ price: Number(price), details, active })
       });
       const data = await res.json();
       if (data.success) {
-        alert('Pricing plan updated successfully!');
+        if (!silent) alert('Pricing plan updated successfully!');
         setPlans(prev => prev.map(p => p._id === planId ? data.plan : p));
       } else {
-        alert(data.message || 'Failed to update pricing plan.');
+        if (!silent) alert(data.message || 'Failed to update pricing plan.');
       }
     } catch (err) {
       console.error(err);
-      alert('Network error updating pricing plan.');
+      if (!silent) alert('Network error updating pricing plan.');
     }
+  };
+
+  const handleQuickPreset = async (platform, mode) => {
+    const platformPlans = plans.filter(p => p.platform === platform);
+    for (const plan of platformPlans) {
+      let active = true;
+      if (mode === 'top2') {
+        active = (plan.name === 'Standard' || plan.name === 'Premium UHD');
+      } else if (mode === 'mobile2') {
+        active = (plan.name === 'Mobile' || plan.name === 'Basic');
+      } else if (mode === 'all4') {
+        active = true;
+      }
+      await handleUpdatePlan(plan._id, plan.price, plan.details, active, true);
+    }
+    alert(`${platform} display updated: Showing ${mode === 'all4' ? 'All 4 Plans' : '2 Plans Only'} on website!`);
   };
 
   const handleQrUpload = async (key, file) => {
@@ -695,13 +735,45 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8">
             {['Netflix', 'Amazon Prime', 'SonyLIV', 'Zee5'].map((platform) => {
               const platformPlans = plans.filter(p => p.platform === platform);
+              const activeCount = platformPlans.filter(p => p.active !== false).length;
               return (
                 <div key={platform} className="glass-card rounded-2xl p-5 md:p-6 flex flex-col gap-4 border border-slate-100 shadow-sm bg-white">
-                  <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center justify-between">
-                    <span>{platform} Plans & Notes</span>
-                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">Group</span>
-                  </h3>
-                  <div className="flex flex-col gap-4">
+                  <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                      <span>{platform} Plans & Notes</span>
+                      <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">
+                        {activeCount} active
+                      </span>
+                    </h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">Display:</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleQuickPreset(platform, 'all4')}
+                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs"
+                        title="Show all 4 plans on the website"
+                      >
+                        All 4 Plans
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleQuickPreset(platform, 'top2')}
+                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs"
+                        title="Show only Standard and Premium UHD plans on the website"
+                      >
+                        2 Plans (Std/Prem)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleQuickPreset(platform, 'mobile2')}
+                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg bg-slate-100 hover:bg-amber-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs"
+                        title="Show only Mobile and Basic plans on the website"
+                      >
+                        2 Plans (Mob/Bas)
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3.5">
                     {platformPlans.map((plan) => (
                       <PlanRow key={plan._id} plan={plan} onUpdate={handleUpdatePlan} />
                     ))}

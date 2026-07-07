@@ -192,14 +192,17 @@ export default function Home() {
             const dbPlatformName = plat.name;
             const dbPlans = data.plans.filter(p => p.platform === dbPlatformName);
             if (dbPlans.length > 0) {
+              const activeDbPlans = dbPlans.filter(p => p.active !== false);
+              const plansToRender = activeDbPlans.length > 0 ? activeDbPlans : dbPlans;
               return {
                 ...plat,
-                plans: dbPlans.map(dbPlan => ({
+                plans: plansToRender.map(dbPlan => ({
                   id: dbPlan._id,
                   name: dbPlan.name,
                   price: dbPlan.price,
                   details: dbPlan.details,
-                  popular: dbPlan.popular
+                  popular: dbPlan.popular,
+                  active: dbPlan.active
                 })).sort((a, b) => a.price - b.price)
               };
             }

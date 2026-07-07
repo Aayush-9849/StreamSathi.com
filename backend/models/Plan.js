@@ -24,6 +24,10 @@ const planSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  active: {
+    type: Boolean,
+    default: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

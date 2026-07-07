@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
 // @route   PUT /api/plans/:id
 // @access  Private (Admin Only)
 router.put('/:id', protect, async (req, res) => {
-  const { price, details } = req.body;
+  const { price, details, active } = req.body;
 
   try {
     // Validate admin privileges
@@ -44,9 +44,12 @@ router.put('/:id', protect, async (req, res) => {
 
     plan.price = Number(price);
     plan.details = details;
+    if (active !== undefined) {
+      plan.active = Boolean(active);
+    }
     await plan.save();
 
-    console.log(`Plan Updated [${plan.platform} - ${plan.name}]: Rs. ${plan.price}, Details: ${plan.details}`);
+    console.log(`Plan Updated [${plan.platform} - ${plan.name}]: Rs. ${plan.price}, Details: ${plan.details}, Active: ${plan.active}`);
 
     return res.status(200).json({
       success: true,
