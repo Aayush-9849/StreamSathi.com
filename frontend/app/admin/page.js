@@ -738,39 +738,51 @@ export default function AdminDashboard() {
               const activeCount = platformPlans.filter(p => p.active !== false).length;
               return (
                 <div key={platform} className="glass-card rounded-2xl p-5 md:p-6 flex flex-col gap-4 border border-slate-100 shadow-sm bg-white">
-                  <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                      <span>{platform} Plans & Notes</span>
-                      <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">
-                        {activeCount} active
-                      </span>
-                    </h3>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">Display:</span>
+                  <div className="border-b border-slate-100 pb-3.5 flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                        <span>{platform} Plans & Notes</span>
+                        <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">
+                          {activeCount} of {platformPlans.length} active on site
+                        </span>
+                      </h3>
                       <button
                         type="button"
                         onClick={() => void handleQuickPreset(platform, 'all4')}
-                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs"
-                        title="Show all 4 plans on the website"
+                        className="px-2.5 py-1 text-[11px] font-extrabold rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs self-start sm:self-auto"
+                        title="Enable all plans for this platform"
                       >
-                        All 4 Plans
+                        ⚡ Enable All 4
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleQuickPreset(platform, 'top2')}
-                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs"
-                        title="Show only Standard and Premium UHD plans on the website"
-                      >
-                        2 Plans (Std/Prem)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleQuickPreset(platform, 'mobile2')}
-                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg bg-slate-100 hover:bg-amber-600 hover:text-white text-slate-700 transition-all cursor-pointer shadow-2xs"
-                        title="Show only Mobile and Basic plans on the website"
-                      >
-                        2 Plans (Mob/Bas)
-                      </button>
+                    </div>
+
+                    {/* Interactive Plan Checkbox Selector Toolbar */}
+                    <div className="bg-slate-50/90 p-3 rounded-xl border border-slate-200/80 flex flex-col gap-2 shadow-2xs">
+                      <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>👁️ Select Which Plans to Show on Website:</span>
+                        <span className="text-[10px] text-slate-500 font-normal lowercase">(click to toggle any plan)</span>
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
+                        {platformPlans.map((plan) => {
+                          const isShown = plan.active !== false;
+                          return (
+                            <button
+                              key={plan._id}
+                              type="button"
+                              onClick={() => void handleUpdatePlan(plan._id, plan.price, plan.details, !isShown)}
+                              className={`p-2 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs border text-center ${
+                                isShown
+                                  ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-sm'
+                                  : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-100 hover:text-slate-700 opacity-75'
+                              }`}
+                              title={`Click to ${isShown ? 'hide' : 'show'} ${plan.name} on your website`}
+                            >
+                              <span className="text-sm">{isShown ? '☑️' : '⬜'}</span>
+                              <span className="truncate">{plan.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-col gap-3.5">
