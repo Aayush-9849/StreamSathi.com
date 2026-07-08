@@ -45,10 +45,12 @@ app.set('trust proxy', 1);
 // Security headers (helmet)
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// CORS — allow Vercel frontend and local dev
+// CORS — allow Vercel frontend, custom domain, and local dev
 const allowedOrigins = [
   ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim()) : []),
   'https://stream-sathi-com.vercel.app',
+  'https://aayushkumaryadav.com.np',
+  'https://www.aayushkumaryadav.com.np',
   'http://localhost:3000',
 ];
 app.use(cors({
@@ -59,9 +61,9 @@ app.use(cors({
   credentials: true,
 }));
 
-// Body size limits to prevent payload attacks
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// Body size limits to prevent payload attacks (increased to 10mb for base64 screenshots)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Global rate limiter — 120 requests per 15 minutes per IP
