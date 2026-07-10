@@ -1,5 +1,6 @@
 import "./globals.css";
 import Header from "./components/Header";
+import VisitorTracker from "./components/VisitorTracker";
 import { Outfit } from 'next/font/google';
 
 const outfit = Outfit({
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/streamsathi-favicon.svg?v=2" type="image/svg+xml" />
       </head>
       <body>
+        <VisitorTracker />
         <Header />
         <main className="container max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1">
           {children}

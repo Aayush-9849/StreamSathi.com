@@ -107,6 +107,18 @@ export default function AdminDashboard() {
   const [emailStatus, setEmailStatus] = useState(null);
   const [checkingEmailStatus, setCheckingEmailStatus] = useState(false);
 
+  // Visitor Analytics State
+  const [analytics, setAnalytics] = useState({
+    totalVisits: 0,
+    uniqueVisitors: 0,
+    todayVisits: 0,
+    todayUniqueVisitors: 0,
+    deviceBreakdown: { Desktop: 0, Mobile: 0, Tablet: 0 },
+    topPages: [],
+    recentVisits: [],
+  });
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
   const fetchGlobalOrders = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -223,15 +235,38 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchAnalytics = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setLoadingAnalytics(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/analytics/summary`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setAnalytics(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching visitor analytics:', err);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }, []);
+
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
       void fetchGlobalOrders();
       void fetchCustomers();
       void fetchStorefrontConfig();
       void fetchEmailStatus();
+      void fetchAnalytics();
     }, 0);
     return () => window.clearTimeout(loadTimer);
-  }, [fetchGlobalOrders, fetchCustomers, fetchStorefrontConfig, fetchEmailStatus]);
+  }, [fetchGlobalOrders, fetchCustomers, fetchStorefrontConfig, fetchEmailStatus, fetchAnalytics]);
 
   const handleUpdateStatus = async (orderId, targetStatus) => {
     if (!confirm(`Are you sure you want to mark this activation order as ${targetStatus}?`)) {
@@ -462,6 +497,7 @@ export default function AdminDashboard() {
           void fetchCustomers();
           void fetchStorefrontConfig();
           void fetchEmailStatus();
+          void fetchAnalytics();
         }} className="btn btn-secondary py-2 px-4 text-xs rounded-xl shadow-sm w-full sm:w-auto">
           🔄 Refresh Dashboard
         </button>
@@ -480,6 +516,12 @@ export default function AdminDashboard() {
           className={`py-3 px-4 font-bold text-sm transition-all duration-150 border-b-2 whitespace-nowrap ${activeTab === 'customers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           Customers ({totalCustomers})
+        </button>
+        <button
+          onClick={() => { setActiveTab('analytics'); void fetchAnalytics(); }}
+          className={`py-3 px-4 font-bold text-sm transition-all duration-150 border-b-2 whitespace-nowrap ${activeTab === 'analytics' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          📈 Visitors & Traffic ({analytics.uniqueVisitors || 0})
         </button>
         <button
           onClick={() => setActiveTab('prices')}
@@ -725,6 +767,141 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Analytics & Live Visitors */}
+      {activeTab === 'analytics' && (
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900">Live Customer Traffic & Analytics</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Track how many customers visit your website, what pages they view, and when they visited.</p>
+            </div>
+            <button
+              onClick={() => void fetchAnalytics()}
+              className="btn btn-secondary py-1.5 px-4 text-xs rounded-xl"
+            >
+              🔄 Refresh Traffic
+            </button>
+          </div>
+
+          {loadingAnalytics ? (
+            <div className="text-center py-16 text-slate-500">Loading visitor analytics data...</div>
+          ) : (
+            <>
+              {/* 4 Hero Stats Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="glass-card rounded-2xl p-5 border border-blue-100/60 shadow-sm bg-gradient-to-br from-blue-50/50 to-white">
+                  <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">👥 Total Unique Visitors</div>
+                  <div className="text-3xl font-extrabold text-slate-900">{analytics.uniqueVisitors || 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">Distinct customers visited</div>
+                </div>
+
+                <div className="glass-card rounded-2xl p-5 border border-indigo-100/60 shadow-sm bg-gradient-to-br from-indigo-50/50 to-white">
+                  <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">⚡ Today's Unique Visitors</div>
+                  <div className="text-3xl font-extrabold text-slate-900">{analytics.todayUniqueVisitors || 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">{analytics.todayVisits || 0} total hits today</div>
+                </div>
+
+                <div className="glass-card rounded-2xl p-5 border border-emerald-100/60 shadow-sm bg-gradient-to-br from-emerald-50/50 to-white">
+                  <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">📊 All-Time Page Views</div>
+                  <div className="text-3xl font-extrabold text-slate-900">{analytics.totalVisits || 0}</div>
+                  <div className="text-xs text-slate-500 mt-1">Total page navigations</div>
+                </div>
+
+                <div className="glass-card rounded-2xl p-5 border border-purple-100/60 shadow-sm bg-gradient-to-br from-purple-50/50 to-white">
+                  <div className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-1">📱 Mobile vs Desktop</div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-extrabold text-slate-900">
+                      📱 {analytics.deviceBreakdown?.Mobile || 0}
+                    </span>
+                    <span className="text-sm font-bold text-slate-400">/</span>
+                    <span className="text-2xl font-extrabold text-slate-700">
+                      💻 {analytics.deviceBreakdown?.Desktop || 0}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Mobile customers vs PC</div>
+                </div>
+              </div>
+
+              {/* Top Pages & Recent Visitors Log */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Top Visited Pages */}
+                <div className="glass-card rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                  <h3 className="font-extrabold text-slate-900 text-base mb-4">🔥 Most Visited Pages</h3>
+                  {(!analytics.topPages || analytics.topPages.length === 0) ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">No page traffic recorded yet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {analytics.topPages.map((page, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="font-bold text-xs text-indigo-700 font-mono truncate max-w-[180px]">
+                            {page.path}
+                          </span>
+                          <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-full">
+                            {page.count} visits
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Visitor Feed Table */}
+                <div className="lg:col-span-2 glass-card rounded-2xl p-5 border border-slate-200/80 shadow-sm overflow-hidden">
+                  <h3 className="font-extrabold text-slate-900 text-base mb-4">🕒 Live Visitor Activity Log (Recent)</h3>
+                  {(!analytics.recentVisits || analytics.recentVisits.length === 0) ? (
+                    <div className="text-center py-12 text-slate-400 text-xs">
+                      No visits recorded yet. Open your website in a new tab to see your visit appear here instantly!
+                    </div>
+                  ) : (
+                    <div className="table-container max-h-[450px] overflow-y-auto">
+                      <table className="table-el">
+                        <thead>
+                          <tr>
+                            <th>Time Visited</th>
+                            <th>Page Viewed</th>
+                            <th>Device</th>
+                            <th>Source / Referrer</th>
+                            <th>Customer ID</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analytics.recentVisits.map((v, idx) => (
+                            <tr key={idx}>
+                              <td className="text-slate-700 font-medium whitespace-nowrap">
+                                <div>
+                                  {new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {new Date(v.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                </div>
+                              </td>
+                              <td>
+                                <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+                                  {v.path}
+                                </span>
+                              </td>
+                              <td className="font-semibold text-slate-800">
+                                {v.deviceType === 'Mobile' ? '📱 Mobile' : v.deviceType === 'Tablet' ? '📲 Tablet' : '💻 Desktop'}
+                              </td>
+                              <td className="text-xs text-slate-600 truncate max-w-[130px]">
+                                {v.referrer || 'Direct'}
+                              </td>
+                              <td className="font-mono text-[11px] text-slate-400">
+                                {v.visitorId ? v.visitorId.slice(0, 14) + '...' : 'Anonymous'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

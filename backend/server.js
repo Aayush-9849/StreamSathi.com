@@ -37,6 +37,7 @@ const authRoutes = require('./routes/auth');
 const orderRoutes = require('./routes/orders');
 const planRoutes = require('./routes/plans');
 const settingRoutes = require('./routes/settings');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -94,6 +95,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
